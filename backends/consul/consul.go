@@ -13,14 +13,15 @@ import (
 )
 
 const ServicePrefix = "creg"
+const ServiceLabelPort = "consul-reg.port"
 
 type Backend struct {
-	Client *consulapi.Client
+	ConsulClient *consulapi.Client
 }
 
 func New(c *consulapi.Client) *Backend {
 	return &Backend{
-		Client: c,
+		ConsulClient: c,
 	}
 }
 
@@ -32,7 +33,7 @@ func (b *Backend) Run(context context.Context, events chan docker.ContainerEvent
 		case event := <-events:
 			switch event.Event.Action {
 			case "start":
-				ports := extractPorts(event.Container.Config.Labels, "consul-reg.port")
+				ports := extractPorts(event.Container.Config.Labels, ServiceLabelPort)
 				servicesByPort := mapServices(ports, event.Container.Config.Labels, staticLabelsToAdd, []FilterFunc{TraefikLabelFilter})
 				err := b.RegisterServices(servicesByPort)
 				if err != nil {
@@ -40,6 +41,11 @@ func (b *Backend) Run(context context.Context, events chan docker.ContainerEvent
 					continue
 				}
 			case "stop":
+				err := b.ConsulClient.Agent().ServiceDeregister(event.Container.ID)
+				if err != nil {
+					log.Printf("Could not DeregisterServices: %s", err)
+					continue
+				}
 			}
 		}
 	}
@@ -95,14 +101,14 @@ func (b *Backend) RegisterServices(ports map[string]ServiceWithLabels) error {
 		registration.Name = service.Name
 
 		// migrate to new service name
-		err := b.Client.Agent().ServiceDeregister(registration.Name)
+		err := b.ConsulClient.Agent().ServiceDeregister(registration.Name)
 		if err != nil {
 			log.Printf("error reregister: %s", err)
 		}
 
 		registration.Name = ServicePrefix + registration.Name
 
-		err = b.Client.Agent().ServiceRegister(registration)
+		err = b.ConsulClient.Agent().ServiceRegister(registration)
 		if err != nil {
 			log.Printf("error register: %s", err)
 		}
@@ -135,14 +141,14 @@ func extractPorts(labels map[string]string, prefix string) map[string]string {
 
 func (b *Backend) Purge() error {
 	// retrieve all consul containers and delete the ones where name has ServerPrefix
-	services, err := b.Client.Agent().Services()
+	services, err := b.ConsulClient.Agent().Services()
 	if err != nil {
 		return fmt.Errorf("could not agent.Services: %w", err)
 	}
 
 	for name, service := range services {
 		if strings.HasPrefix(name, ServicePrefix) {
-			err := b.Client.Agent().ServiceDeregister(service.ID)
+			err := b.ConsulClient.Agent().ServiceDeregister(service.ID)
 			if err != nil {
 				log.Printf("Could not agent.ServiceDeregister: %s", err)
 			}
