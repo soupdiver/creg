@@ -5,5 +5,8 @@ build:
 image-docker: build
 	docker build -t soupdiver/creg:latest .
 
+image-docker-push: image-docker
+	docker push soupdiver/creg:latest
+
 clean:
 	rm -rf ./bin
