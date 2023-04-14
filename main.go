@@ -11,15 +11,20 @@ import (
 	"syscall"
 
 	"github.com/docker/docker/client"
-	consulapi "github.com/hashicorp/consul/api"
-	"github.com/soupdiver/creg/backends/consul"
-	"github.com/soupdiver/creg/docker"
 	flag "github.com/spf13/pflag"
+
+	"github.com/soupdiver/creg/backends"
+	"github.com/soupdiver/creg/backends/consul"
+	"github.com/soupdiver/creg/backends/etcd"
+	"github.com/soupdiver/creg/config"
+	"github.com/soupdiver/creg/docker"
+	"github.com/soupdiver/creg/eventmultiplexer"
 )
 
 var (
 	fAddress       = flag.String("address", "", "Address to use for consul services")
 	fConsulAddress = flag.String("consul", "", "Address of consul agent")
+	fEtcdAddress   = flag.String("etcd", "", "Address of etcd agent")
 	fHelp          = flag.BoolP("help", "h", false, "Print usage")
 	fLabels        = flag.StringSliceP("labels", "l", []string{}, "Labels to append tp consul services")
 	fCleanOnStart  = flag.Bool("clean", false, "Clean consul services on start")
@@ -37,6 +42,7 @@ func main() {
 }
 
 func Run() error {
+	// Handle flags
 	flag.Parse()
 
 	if *fHelp {
@@ -65,47 +71,94 @@ func Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Docker client
+	// Get default config
+	cfg := config.DefaultConfig
+
+	// Overwrite settings as needed
+	cfg.ConsulConfig.Address = *fConsulAddress
+	cfg.EtcdConfig.Endpoints = append(cfg.EtcdConfig.Endpoints, *fEtcdAddress)
+	cfg.StaticLabels = []string{"dc=remote"}
+	cfg.ForwardAddress = *fAddress
+
+	// Setup Docker client
 	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return fmt.Errorf("could not create docker client: %w", err)
 	}
 	defer dockerClient.Close()
 
-	// Consul client and backend
-	consulConfig := consulapi.DefaultConfig()
-	consulConfig.Address = *fConsulAddress
-	consulClient, err := consulapi.NewClient(consulConfig)
+	// Setup event multiplexer
+	multi := eventmultiplexer.New(docker.GetEventsForCreg(ctx, dockerClient, "creg"))
+
+	// Setup Backends
+	var enabledBackends []backends.Backend
+	enabledBackends = append(enabledBackends, ConsulFromConfig(cfg))
+	enabledBackends = append(enabledBackends, EtcdFromConfig(cfg))
+
+	// Get currently running containers that we should register
+	containers, err := docker.GetContainersForCreg(ctx, dockerClient, "creg")
 	if err != nil {
-		return fmt.Errorf("could not create consul client: %w", err)
-	}
-	consulBackend := consul.New(consulClient)
-
-	if *fCleanOnStart {
-		err := consulBackend.Purge()
-		if err != nil {
-			return fmt.Errorf("could not clean consul services: %w", err)
-		}
+		return fmt.Errorf("could not get creg containers: %w", err)
 	}
 
+	// Start backends
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		consulBackend.Run(ctx, docker.GetEventsForCreg(ctx, dockerClient, "container-reg"), []string{"dc=remote"})
-	}()
+	for _, backend := range enabledBackends {
+		wg.Add(1)
+		go func(backend backends.Backend) {
+			defer wg.Done()
+			err := backend.Run(ctx, multi.NewOutput(), *fCleanOnStart, containers)
+			if err != nil {
+				log.Printf("Backend failed: %s", err)
+			}
+		}(backend)
+	}
 
+	SetupSignalHandler(cancel)
+
+	// Wait for backends to finish
+	wg.Wait()
+
+	log.Printf("Exit")
+
+	return nil
+}
+
+func SetupSignalHandler(cancel context.CancelFunc) {
 	c := make(chan os.Signal, 5)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		s := <-c
-		log.Printf("Received %s, cancelling context", s)
+
+		log.Printf("Received %s, purging and cancelling context", s)
+
+		// var err error
+		// for _, backend := range enabledBackends {
+		// 	err = backend.Purge()
+		// 	if err != nil {
+		// 		log.Printf("Could not purge backend: %s", err)
+		// 	}
+		// }
+
 		cancel()
 	}()
+}
 
-	wg.Wait()
+func ConsulFromConfig(cfg config.Config) *consul.Backend {
+	consulBackend, err := consul.New(cfg.ConsulConfig, consul.WithStaticLabels([]string{"dc=remote"}))
+	if err != nil {
+		log.Fatalf("could not create consul backend: %s", err)
+	}
+	consulBackend.ForwardAddress = cfg.ForwardAddress
 
-	log.Printf("Done!")
+	return consulBackend
+}
 
-	return nil
+func EtcdFromConfig(cfg config.Config) *etcd.Backend {
+	c, err := etcd.New(*cfg.EtcdConfig, etcd.WithStaticLabels(cfg.StaticLabels))
+	if err != nil {
+		log.Fatalf("could not create etcd backend: %s", err)
+	}
+
+	return c
 }

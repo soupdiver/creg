@@ -14,6 +14,31 @@ type ContainerEvent struct {
 	Container types.ContainerJSON
 }
 
+func GetContainersForCreg(ctx context.Context, client *client.Client, label string) ([]types.ContainerJSON, error) {
+	containers, err := client.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	cregContainers := []types.ContainerJSON{}
+	for _, container := range containers {
+		// log.Printf("check container: %s", container.ID)
+		if v, ok := container.Labels[label]; !ok || v != "true" {
+			// log.Printf("label: %+v", container.Labels[label])
+			continue
+		}
+
+		container, err := client.ContainerInspect(ctx, container.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		cregContainers = append(cregContainers, container)
+	}
+
+	return cregContainers, nil
+}
+
 func GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ContainerEvent {
 	ctx, cancel := context.WithCancel(ctx)
 	es, cerr := client.Events(ctx, types.EventsOptions{})
@@ -30,7 +55,7 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 		for {
 			select {
 			case <-ctx.Done():
-				close(c)
+				// close(c)
 			case event := <-es:
 				switch event.Action {
 				case "start":
