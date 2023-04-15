@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  etcd:
+    container_name: etcd
+    image: "quay.io/coreos/etcd:v3.5.1"
+    environment:
+      - ETCD_NAME=etcd-node-1
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_CLUSTER=etcd-node-1=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-1
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd-data:/etcd-data
+    networks:
+      - testing
+
+  consull:
+    # container_name: consul
+    hostname: consul
+    image: "consul:1.11.3"
+    command: "agent -dev -client=0.0.0.0"
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    networks:
+      - testing
+  
+  creg:
+    depends_on:
+      - etcd
+      - consull
+    dns:
+      - 127.0.0.11
+    # container_name: creg
+    image: soupdiver/creg:testing
+    command: "/creg --address=6.6.6.6 --consul=172.17.0.1:8500 --sync"
+    volumes:
+      - /run/docker.sock:/var/run/docker.sock
+    networks:
+      - testing
+
+
+volumes:
+  etcd-data:
+networks:
+  testing:

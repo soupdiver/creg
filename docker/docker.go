@@ -22,11 +22,11 @@ func GetContainersForCreg(ctx context.Context, client *client.Client, label stri
 
 	cregContainers := []types.ContainerJSON{}
 	for _, container := range containers {
-		// log.Printf("check container: %s", container.ID)
 		if v, ok := container.Labels[label]; !ok || v != "true" {
 			// log.Printf("label: %+v", container.Labels[label])
 			continue
 		}
+		log.Printf("found container: %s", container.ID)
 
 		container, err := client.ContainerInspect(ctx, container.ID)
 		if err != nil {
@@ -58,8 +58,7 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 				// close(c)
 			case event := <-es:
 				switch event.Action {
-				case "start":
-				case "stop":
+				case "start", "stop":
 					container, err := client.ContainerInspect(ctx, event.Actor.ID)
 					if err != nil {
 						log.Printf("err inspect: %s", err)

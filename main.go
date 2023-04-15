@@ -27,7 +27,7 @@ var (
 	fEtcdAddress   = flag.String("etcd", "", "Address of etcd agent")
 	fHelp          = flag.BoolP("help", "h", false, "Print usage")
 	fLabels        = flag.StringSliceP("labels", "l", []string{}, "Labels to append tp consul services")
-	fCleanOnStart  = flag.Bool("clean", false, "Clean consul services on start")
+	fSync          = flag.Bool("sync", false, "Sync consul services on start")
 )
 
 var (
@@ -54,9 +54,9 @@ func Run() error {
 		return fmt.Errorf("address is required")
 	}
 
-	if fConsulAddress == nil || *fConsulAddress == "" {
-		return fmt.Errorf("consul address is required")
-	}
+	// if fConsulAddress == nil || *fConsulAddress == "" {
+	// 	return fmt.Errorf("consul address is required")
+	// }
 
 	if len(*fLabels) > 0 {
 		for _, v := range *fLabels {
@@ -75,8 +75,12 @@ func Run() error {
 	cfg := config.DefaultConfig
 
 	// Overwrite settings as needed
-	cfg.ConsulConfig.Address = *fConsulAddress
-	cfg.EtcdConfig.Endpoints = append(cfg.EtcdConfig.Endpoints, *fEtcdAddress)
+	if *fConsulAddress != "" {
+		cfg.ConsulConfig.Address = *fConsulAddress
+	}
+	if *fEtcdAddress != "" {
+		cfg.EtcdConfig.Endpoints = append(cfg.EtcdConfig.Endpoints, *fEtcdAddress)
+	}
 	cfg.StaticLabels = []string{"dc=remote"}
 	cfg.ForwardAddress = *fAddress
 
@@ -89,11 +93,18 @@ func Run() error {
 
 	// Setup event multiplexer
 	multi := eventmultiplexer.New(docker.GetEventsForCreg(ctx, dockerClient, "creg"))
+	multi.Run()
 
 	// Setup Backends
 	var enabledBackends []backends.Backend
+
+	// if *fConsulAddress != "" {
 	enabledBackends = append(enabledBackends, ConsulFromConfig(cfg))
-	enabledBackends = append(enabledBackends, EtcdFromConfig(cfg))
+	log.Print(1)
+	// }
+	if *fEtcdAddress != "" {
+		enabledBackends = append(enabledBackends, EtcdFromConfig(cfg))
+	}
 
 	// Get currently running containers that we should register
 	containers, err := docker.GetContainersForCreg(ctx, dockerClient, "creg")
@@ -104,10 +115,11 @@ func Run() error {
 	// Start backends
 	var wg sync.WaitGroup
 	for _, backend := range enabledBackends {
+		log.Printf("Starting backend with %d containers", len(containers))
 		wg.Add(1)
 		go func(backend backends.Backend) {
 			defer wg.Done()
-			err := backend.Run(ctx, multi.NewOutput(), *fCleanOnStart, containers)
+			err := backend.Run(ctx, multi.NewOutput(), *fSync, containers)
 			if err != nil {
 				log.Printf("Backend failed: %s", err)
 			}
