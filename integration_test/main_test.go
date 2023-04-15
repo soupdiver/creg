@@ -168,8 +168,9 @@ func TestMain(m *testing.M) {
 	}
 
 	time.Sleep(1 * time.Second)
-
-	consulClient, err = api.NewClient(api.DefaultConfig())
+	consulcfg := api.DefaultConfig()
+	consulcfg.Address = "localhost:8500"
+	consulClient, err = api.NewClient(consulcfg)
 	if err != nil {
 		panic(err)
 	}
@@ -185,6 +186,7 @@ func TestMain(m *testing.M) {
 	for i := 0; i < 10; i++ {
 		_, err = consulClient.Agent().Services()
 		if err != nil {
+			log.Printf("wait consul")
 			time.Sleep(1 * time.Second)
 		} else {
 			break
@@ -194,6 +196,7 @@ func TestMain(m *testing.M) {
 	for i := 0; i < 10; i++ {
 		_, err = EtcdClient.MemberList(context.Background())
 		if err != nil {
+			log.Printf("wait etcd")
 			time.Sleep(1 * time.Second)
 		} else {
 			break

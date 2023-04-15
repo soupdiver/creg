@@ -15,7 +15,7 @@ services:
       - ETCD_INITIAL_CLUSTER_STATE=new
       - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-1
     ports:
-      - "2379:2379"
+      - "127.0.0.1:2379:2379"
       - "2380:2380"
     volumes:
       - etcd-data:/etcd-data
@@ -27,7 +27,7 @@ services:
     image: "consul:1.11.3"
     command: "agent -dev -client=0.0.0.0"
     ports:
-      - "8500:8500"
+      - "127.0.0.1:8500:8500"
       - "8600:8600/udp"
     networks:
       - testing
