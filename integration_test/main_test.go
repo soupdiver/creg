@@ -182,7 +182,23 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	log.Print(1)
+	for i := 0; i < 10; i++ {
+		_, err = consulClient.Agent().Services()
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		} else {
+			break
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		_, err = EtcdClient.MemberList(context.Background())
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		} else {
+			break
+		}
+	}
 
 	// run tests
 	code := m.Run()
