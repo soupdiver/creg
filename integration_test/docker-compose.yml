@@ -22,8 +22,7 @@ services:
     networks:
       - testing
 
-  consull:
-    # container_name: consul
+  consul:
     hostname: consul
     image: "consul:1.11.3"
     command: "agent -dev -client=0.0.0.0"
@@ -36,12 +35,9 @@ services:
   creg:
     depends_on:
       - etcd
-      - consull
-    dns:
-      - 127.0.0.11
-    # container_name: creg
+      - consul
     image: soupdiver/creg:testing
-    command: "/creg --address=6.6.6.6 --consul=172.17.0.1:8500 --sync"
+    command: "/creg --address=6.6.6.6 --consul=consul:8500 --sync"
     volumes:
       - /run/docker.sock:/var/run/docker.sock
     networks:

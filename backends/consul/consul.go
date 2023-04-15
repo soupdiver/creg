@@ -55,8 +55,10 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("Consul exiiting: %s", "context cancelled")
 			return nil
 		case event := <-events:
+			// log.Printf("received %s for %s", event.Event.Action, event.Container.ID)
 			switch event.Event.Action {
 			case "start":
 				ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
@@ -67,7 +69,12 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 					continue
 				}
 			case "stop":
-				err := b.ConsulClient.Agent().ServiceDeregister(event.Container.ID)
+				// log.Printf("deregister: %s", event.Container.ID)
+
+				ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
+				servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
+
+				err := b.DeregisterServices(servicesByPort)
 				if err != nil {
 					log.Printf("Could not DeregisterServices: %s", err)
 					continue
@@ -75,6 +82,21 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 			}
 		}
 	}
+}
+
+func (b *Backend) DeregisterServices(ports map[string]backends.ServiceWithLabels) error {
+	for _, service := range ports {
+		id := backends.ServicePrefix + "-" + service.Name
+
+		err := b.ConsulClient.Agent().ServiceDeregister(id)
+		if err != nil {
+			log.Printf("error deregister: %s", err)
+			continue
+		}
+
+		// log.Printf("deregistered: %s", id)
+	}
+	return nil
 }
 
 // functen that registgers ports to consul
@@ -87,7 +109,7 @@ func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) 
 			Tags:    service.Labels,
 		}
 
-		log.Printf("adding: %s", port)
+		// log.Printf("adding: %s", port)
 		var err error
 		registration.Port, err = strconv.Atoi(strings.Split(port, "/")[0])
 		if err != nil {

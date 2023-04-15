@@ -21,7 +21,7 @@ var (
 	consulClient *api.Client
 )
 
-func TestCreate(t *testing.T) {
+func TestConsulStartAndStop(t *testing.T) {
 	s, err := consulClient.Agent().Services()
 	if err != nil {
 		t.Fatal(err)
@@ -55,26 +55,45 @@ func TestCreate(t *testing.T) {
 	// give some time for the container to start
 	time.Sleep(1 * time.Second)
 
-	// // get logs from container named creg
-	// logs, err := cli.ContainerLogs(context.Background(), "creg", dockertypes.ContainerLogsOptions{
-	// 	ShowStdout: true,
-	// 	ShowStderr: true,
-	// })
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// txt, err := ioutil.ReadAll(logs)
-	// if err == nil {
-	// 	log.Printf("logs: %s", txt)
-	// }
+	s, err = consulClient.Agent().Services()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// we expect one more service than before
+	if len(s) != cStart+1 {
+		t.Fatalf("expected %d services, got %d", cStart+1, len(s))
+	}
+
+	// stop container
+	err = cli.ContainerStop(context.Background(), resp.ID, container.StopOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// give some time for the container to stop
+	time.Sleep(1 * time.Second)
+
+	// remove container
+	err = cli.ContainerRemove(context.Background(), resp.ID, dockertypes.ContainerRemoveOptions{
+		Force:         true,
+		RemoveVolumes: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// give some time for the container to stop
+	time.Sleep(1 * time.Second)
 
 	s, err = consulClient.Agent().Services()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if len(s) != cStart+1 {
-		t.Fatalf("expected %d services, got %d", cStart+1, len(s))
+	// we expect one less service than before
+	if len(s) != cStart {
+		t.Fatalf("expected %d services, got %d", cStart, len(s))
 	}
 }
 
@@ -98,7 +117,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	time.Sleep(3 * time.Second)
+	time.Sleep(1 * time.Second)
 
 	consulClient, err = api.NewClient(api.DefaultConfig())
 	if err != nil {
@@ -118,7 +137,7 @@ func TestMain(m *testing.M) {
 }
 
 func applyDockerCompose(composeFile string, args ...string) error {
-	argz := []string{"compose"}
+	argz := []string{"compose", "-f", composeFile}
 	argz = append(argz, args...)
 	cmd := exec.Command("docker", argz...)
 	err := cmd.Run()

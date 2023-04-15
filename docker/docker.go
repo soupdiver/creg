@@ -69,6 +69,8 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 						continue
 					}
 
+					// log.Printf("Foward %s for %s", event.Action, event.Actor.ID)
+
 					c <- ContainerEvent{
 						Event:     event,
 						Container: container,

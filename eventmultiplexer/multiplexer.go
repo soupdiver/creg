@@ -1,6 +1,9 @@
 package eventmultiplexer
 
 import (
+	"context"
+	"log"
+
 	"github.com/soupdiver/creg/docker"
 )
 
@@ -24,11 +27,21 @@ func (m *DockerEventMultiplexer) NewOutput() chan docker.ContainerEvent {
 	return c
 }
 
-func (m *DockerEventMultiplexer) Run() {
+func (m *DockerEventMultiplexer) Run(ctx context.Context) {
 	go func() {
-		for event := range m.In {
-			for _, backend := range m.Out {
-				backend <- event
+		for {
+			select {
+			case <-ctx.Done():
+				log.Printf("Multiplexer exiiting: %s", "context cancelled")
+				return
+			case event, ok := <-m.In:
+				if !ok {
+					log.Printf("Multiplexer exiiting: %s", "channel closed")
+					return
+				}
+				for _, backend := range m.Out {
+					backend <- event
+				}
 			}
 		}
 	}()

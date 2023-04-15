@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/docker/docker/client"
 	flag "github.com/spf13/pflag"
@@ -93,7 +94,7 @@ func Run() error {
 
 	// Setup event multiplexer
 	multi := eventmultiplexer.New(docker.GetEventsForCreg(ctx, dockerClient, "creg"))
-	multi.Run()
+	multi.Run(ctx)
 
 	// Setup Backends
 	var enabledBackends []backends.Backend
@@ -131,7 +132,11 @@ func Run() error {
 	// Wait for backends to finish
 	wg.Wait()
 
-	log.Printf("Exit")
+	<-ctx.Done()
+
+	log.Print("exit in 2s")
+	time.Sleep(2 * time.Second)
+	log.Print("exit")
 
 	return nil
 }
