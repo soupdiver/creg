@@ -22,7 +22,9 @@ jobs:
         run: |
           # go test -v ./...
           cd integration_test
-          docker compose up -d -f docker-compose.yml
+          docker-compose up -d -f docker-compose.yml
+          sleep 5
+          docker-compose down
       # - name: Build
       #   run: |
       #     goreleaser build --snapshot --clean
