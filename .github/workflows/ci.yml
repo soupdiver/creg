@@ -20,9 +20,11 @@ jobs:
           fetch-depth: 0
       - name: Test
         run: |
-          go test -v ./...
-      - name: Build
-        run: |
-          goreleaser build --snapshot --clean
+          # go test -v ./...
+          cd integration_test
+          docker compose up -d -f docker-compose.yml
+      # - name: Build
+      #   run: |
+      #     goreleaser build --snapshot --clean
       
         

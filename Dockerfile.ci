@@ -3,5 +3,6 @@ FROM golang:1.20-alpine
 RUN apk add --no-cache git
 RUN curl -sfL https://goreleaser.com/static/run | sh
 RUN git config --global --add safe.directory /src
+RUN apk add --no-cache docker-cli
 
 CMD [ "/bin/bash" ]
