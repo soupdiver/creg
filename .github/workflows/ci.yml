@@ -24,12 +24,7 @@ jobs:
           docker tag soupdiver/creg:latest soupdiver/creg:testing
       - name: Test
         run: |
-          # go test -v ./...
-          cd integration_test
-          docker compose up -d
-          sleep 5
-          docker ps -a
-          docker compose down
+          go test -v ./...
       # - name: Build
       #   run: |
       #     goreleaser build --snapshot --clean
