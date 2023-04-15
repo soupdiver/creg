@@ -37,7 +37,16 @@ services:
       - etcd
       - consul
     image: soupdiver/creg:testing
-    command: "/creg --address=6.6.6.6 --consul=consul:8500 --sync --etcd=etcd:2379 --debug --color=false"
+    command: [
+        "/creg",
+        "--address=6.6.6.6",
+        "--consul=consul:8500",
+        "--etcd=etcd:2379",
+        "--enable=creg"
+        "--sync",
+        "--debug",
+        "--color=false",
+      ]
     volumes:
       - /run/docker.sock:/var/run/docker.sock
     networks:

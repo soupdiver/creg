@@ -24,6 +24,19 @@ var (
 	EtcdClient   *clientv3.Client
 )
 
+func HelperRemoveContainer(cli *client.Client, containerName string) error {
+	// remove container
+	err := cli.ContainerRemove(context.Background(), containerName, dockertypes.ContainerRemoveOptions{
+		Force:         true,
+		RemoveVolumes: true,
+	})
+	if err != nil {
+		return fmt.Errorf("could not remove container %s: %w", containerName, err)
+	}
+
+	return nil
+}
+
 func TestEtcdlStartAndStop(t *testing.T) {
 	t.Parallel()
 	// create docker container with nginx image
@@ -36,13 +49,7 @@ func TestEtcdlStartAndStop(t *testing.T) {
 		},
 	}, nil, nil, &v1.Platform{Architecture: "amd64"}, "etcd-nginx-02")
 	defer func() {
-		err = cli.ContainerRemove(context.Background(), resp.ID, dockertypes.ContainerRemoveOptions{
-			Force:         true,
-			RemoveVolumes: true,
-		})
-		if err != nil {
-			t.Log(err)
-		}
+		HelperRemoveContainer(cli, resp.ID)
 	}()
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +109,7 @@ func TestEtcdlStartAndStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Log(4)
+	t.Log(54)
 
 	// we expect one less service than before
 	if s.Count != 0 {
@@ -122,13 +129,7 @@ func TestConsulStartAndStop(t *testing.T) {
 		},
 	}, nil, nil, &v1.Platform{Architecture: "amd64"}, "consul-nginx-01")
 	defer func() {
-		err = cli.ContainerRemove(context.Background(), resp.ID, dockertypes.ContainerRemoveOptions{
-			Force:         true,
-			RemoveVolumes: true,
-		})
-		if err != nil {
-			t.Log(err)
-		}
+		HelperRemoveContainer(cli, resp.ID)
 	}()
 	if err != nil {
 		t.Fatal(err)
