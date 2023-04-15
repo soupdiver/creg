@@ -18,6 +18,11 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
+      
+      - name: Build
+        run: |
+          make image-docker
+          docker tag soupdiver/creg:latest soupdiver/creg:testing
       - name: Test
         run: |
           # go test -v ./...
