@@ -80,8 +80,6 @@ func TestEtcdlStartAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Log(54)
-
 	// we expect one less service than before
 	if s.Count != 0 {
 		t.Fatalf("expected %d services, got %d", 0, s.Count)
@@ -183,15 +181,15 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	// for i := 0; i < 10; i++ {
-	// 	_, err = consulClient.Agent().Services()
-	// 	if err != nil {
-	// 		log.Printf("wait consul")
-	// 		time.Sleep(1 * time.Second)
-	// 	} else {
-	// 		break
-	// 	}
-	// }
+	for i := 0; i < 10; i++ {
+		log.Printf("check consul")
+		_, err = consulClient.Agent().Services()
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		} else {
+			i = 10
+		}
+	}
 
 	// for i := 0; i < 10; i++ {
 	// 	_, err = EtcdClient.MemberList(context.Background())
