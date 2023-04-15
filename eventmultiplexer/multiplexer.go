@@ -4,13 +4,15 @@ import (
 	"context"
 	"log"
 	"strings"
+	"sync"
 
 	"github.com/soupdiver/creg/docker"
 )
 
 type DockerEventMultiplexer struct {
-	In  <-chan docker.ContainerEvent
-	Out map[string]chan docker.ContainerEvent
+	In     <-chan docker.ContainerEvent
+	Out    map[string]chan docker.ContainerEvent
+	outMtx sync.RWMutex
 }
 
 func New(in <-chan docker.ContainerEvent) *DockerEventMultiplexer {
@@ -23,7 +25,9 @@ func New(in <-chan docker.ContainerEvent) *DockerEventMultiplexer {
 func (m *DockerEventMultiplexer) NewOutput(backendName string) chan docker.ContainerEvent {
 	c := make(chan docker.ContainerEvent, 5)
 
+	m.outMtx.Lock()
 	m.Out[backendName] = c
+	m.outMtx.Unlock()
 
 	return c
 }

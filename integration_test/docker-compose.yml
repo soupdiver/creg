@@ -42,7 +42,7 @@ services:
         "--address=6.6.6.6",
         "--consul=consul:8500",
         "--etcd=etcd:2379",
-        "--enable=creg"
+        "--enable=creg",
         "--sync",
         "--debug",
         "--color=false",
@@ -51,7 +51,6 @@ services:
       - /run/docker.sock:/var/run/docker.sock
     networks:
       - testing
-
 
 volumes:
   etcd-data:

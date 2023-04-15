@@ -39,38 +39,20 @@ func HelperRemoveContainer(cli *client.Client, containerName string) error {
 
 func TestEtcdlStartAndStop(t *testing.T) {
 	t.Parallel()
-	// create docker container with nginx image
-	resp, err := cli.ContainerCreate(context.Background(), &container.Config{
-		Image: "nginx",
-		Labels: map[string]string{
-			"creg":          "true",
-			"creg.ports":    "'80/tcp:etcd-nginx'",
-			"creg.backends": "etcd",
-		},
-	}, nil, nil, &v1.Platform{Architecture: "amd64"}, "etcd-nginx-02")
-	defer func() {
-		HelperRemoveContainer(cli, resp.ID)
-	}()
-	if err != nil {
-		t.Fatal(err)
+
+	labels := map[string]string{
+		"creg":          "true",
+		"creg.ports":    "'80/tcp:etcd-nginx'",
+		"creg.backends": "etcd",
 	}
 
-	// start container
-	err = cli.ContainerStart(context.Background(), resp.ID, dockertypes.ContainerStartOptions{})
-	if err != nil {
-		t.Fatal(err)
-	}
+	id, remFn := HelperContainerCreateAndStart(t, cli, "nginx", "etcd-nginx-01", labels)
+	defer remFn()
 
 	// give some time for the container to start
 	time.Sleep(2 * time.Second)
 
 	prefix := "creg/etcd-nginx"
-
-	// serviceKey := etcd.GenerateServiceKey("etcd-nginx")
-	// serviceKeys := strings.Split(serviceKey, "/")
-	// serviceKey = strings.Join(serviceKeys[:len(serviceKeys)-1], "/")
-
-	// t.Logf("lookup: %s", serviceKey)
 
 	rangeEnd := clientv3.GetPrefixRangeEnd(prefix)
 
@@ -85,23 +67,10 @@ func TestEtcdlStartAndStop(t *testing.T) {
 	}
 
 	// stop container
-	err = cli.ContainerStop(context.Background(), resp.ID, container.StopOptions{})
+	err = cli.ContainerStop(context.Background(), id, container.StopOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// give some time for the container to stop
-	time.Sleep(1 * time.Second)
-
-	// // remove container
-	// err = cli.ContainerRemove(context.Background(), resp.ID, dockertypes.ContainerRemoveOptions{
-	// 	Force:         true,
-	// 	RemoveVolumes: true,
-	// })
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
 	// give some time for the container to stop
 	time.Sleep(1 * time.Second)
 
@@ -109,6 +78,7 @@ func TestEtcdlStartAndStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	t.Log(54)
 
 	// we expect one less service than before
@@ -117,20 +87,11 @@ func TestEtcdlStartAndStop(t *testing.T) {
 	}
 }
 
-func TestConsulStartAndStop(t *testing.T) {
-	t.Parallel()
-	// create docker container with nginx image
+func HelperContainerCreateAndStart(t *testing.T, cli *client.Client, image, name string, labels map[string]string) (string, func()) {
 	resp, err := cli.ContainerCreate(context.Background(), &container.Config{
-		Image: "nginx",
-		Labels: map[string]string{
-			"creg":          "true",
-			"creg.ports":    "'80/tcp:consul-nginx'",
-			"creg.backends": "consul",
-		},
-	}, nil, nil, &v1.Platform{Architecture: "amd64"}, "consul-nginx-01")
-	defer func() {
-		HelperRemoveContainer(cli, resp.ID)
-	}()
+		Image:  image,
+		Labels: labels,
+	}, nil, nil, &v1.Platform{Architecture: "amd64"}, name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,36 +102,35 @@ func TestConsulStartAndStop(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// give some time for the container to start
-	time.Sleep(2 * time.Second)
+	return resp.ID, func() { HelperRemoveContainer(cli, resp.ID) }
+}
+
+func TestConsulStartAndStop(t *testing.T) {
+	t.Parallel()
 
 	s, err := consulClient.Agent().ServicesWithFilter("Service == \"creg-consul-nginx\"")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// we expect one more service than before
-	if len(s) != 1 {
-		t.Fatalf("expected %d services, got %d", 1, len(s))
+	if len(s) != 0 {
+		t.Fatalf("expected %d services, got %d", 0, len(s))
 	}
 
+	labels := map[string]string{
+		"creg":          "true",
+		"creg.ports":    "'80/tcp:consul-nginx'",
+		"creg.backends": "consul",
+	}
+
+	id, f := HelperContainerCreateAndStart(t, cli, "nginx", "consul-nginx-02", labels)
+	defer f()
+
 	// stop container
-	err = cli.ContainerStop(context.Background(), resp.ID, container.StopOptions{})
+	err = cli.ContainerStop(context.Background(), id, container.StopOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// give some time for the container to stop
-	time.Sleep(1 * time.Second)
-
-	// // remove container
-	// err = cli.ContainerRemove(context.Background(), resp.ID, dockertypes.ContainerRemoveOptions{
-	// 	Force:         true,
-	// 	RemoveVolumes: true,
-	// })
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
 
 	// give some time for the container to stop
 	time.Sleep(1 * time.Second)
