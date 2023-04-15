@@ -1,6 +1,7 @@
 package integratontest_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -213,9 +214,14 @@ func TestMain(m *testing.M) {
 func applyDockerCompose(composeFile string, args ...string) error {
 	argz := []string{"compose", "-f", composeFile}
 	argz = append(argz, args...)
+	var sO, sE []byte
 	cmd := exec.Command("docker", argz...)
+	cmd.Stdout = bytes.NewBuffer(sO)
+	cmd.Stderr = bytes.NewBuffer(sE)
 	err := cmd.Run()
 	if err != nil {
+		log.Printf("output: %s", string(sO))
+		log.Printf("error: %s", string(sE))
 		return fmt.Errorf("failed to run docker-compose: %w", err)
 	}
 
