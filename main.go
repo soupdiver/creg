@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"strings"
@@ -12,6 +11,8 @@ import (
 	"time"
 
 	"github.com/docker/docker/client"
+	"github.com/sirupsen/logrus"
+
 	flag "github.com/spf13/pflag"
 
 	"github.com/soupdiver/creg/backends"
@@ -22,13 +23,20 @@ import (
 	"github.com/soupdiver/creg/eventmultiplexer"
 )
 
+// Create a new instance of the logger. You can have any number of instances.
+var log = logrus.New()
+
 var (
 	fAddress       = flag.String("address", "", "Address to use for consul services")
 	fConsulAddress = flag.String("consul", "", "Address of consul agent")
 	fEtcdAddress   = flag.String("etcd", "", "Address of etcd agent")
 	fHelp          = flag.BoolP("help", "h", false, "Print usage")
+	fDebug         = flag.BoolP("debug", "d", false, "Debug log")
+	fDebugCaller   = flag.BoolP("debugCaller", "g", false, "Debug caller log")
 	fLabels        = flag.StringSliceP("labels", "l", []string{}, "Labels to append tp consul services")
+	fLogColor      = flag.Bool("color", true, "Colorize log output")
 	fSync          = flag.Bool("sync", false, "Sync consul services on start")
+	fEnableLabel   = flag.String("enable", "creg", "label on which to enable creg")
 )
 
 var (
@@ -55,10 +63,6 @@ func Run() error {
 		return fmt.Errorf("address is required")
 	}
 
-	// if fConsulAddress == nil || *fConsulAddress == "" {
-	// 	return fmt.Errorf("consul address is required")
-	// }
-
 	if len(*fLabels) > 0 {
 		for _, v := range *fLabels {
 			split := strings.Split(v, "=")
@@ -71,6 +75,26 @@ func Run() error {
 	// Prepare root context
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Logging defaults
+	log.Out = os.Stdout
+	log.SetLevel(logrus.InfoLevel)
+	log.SetFormatter(&logrus.JSONFormatter{})
+	if !*fLogColor {
+		log.SetFormatter(&logrus.TextFormatter{
+			DisableColors: true,
+		})
+	}
+
+	if fDebug != nil && *fDebug {
+		log.SetLevel(logrus.DebugLevel)
+	}
+
+	if fDebugCaller != nil && *fDebugCaller {
+		log.SetReportCaller(true)
+	}
+
+	log.WithField("debug", *fDebug).Infof("Starting")
 
 	// Get default config
 	cfg := config.DefaultConfig
@@ -93,18 +117,19 @@ func Run() error {
 	defer dockerClient.Close()
 
 	// Setup event multiplexer
-	multi := eventmultiplexer.New(docker.GetEventsForCreg(ctx, dockerClient, "creg"))
+	multi := eventmultiplexer.New(docker.GetEventsForCreg(ctx, dockerClient, *fEnableLabel))
 	multi.Run(ctx)
 
 	// Setup Backends
 	var enabledBackends []backends.Backend
 
-	// if *fConsulAddress != "" {
-	enabledBackends = append(enabledBackends, ConsulFromConfig(cfg))
-	log.Print(1)
-	// }
+	if *fConsulAddress != "" {
+		log.Printf("Enable consul")
+		enabledBackends = append(enabledBackends, ConsulFromConfig(cfg, log))
+	}
 	if *fEtcdAddress != "" {
-		enabledBackends = append(enabledBackends, EtcdFromConfig(cfg))
+		log.Printf("Enable etcd")
+		enabledBackends = append(enabledBackends, EtcdFromConfig(cfg, log))
 	}
 
 	// Get currently running containers that we should register
@@ -116,11 +141,10 @@ func Run() error {
 	// Start backends
 	var wg sync.WaitGroup
 	for _, backend := range enabledBackends {
-		log.Printf("Starting backend with %d containers", len(containers))
 		wg.Add(1)
 		go func(backend backends.Backend) {
 			defer wg.Done()
-			err := backend.Run(ctx, multi.NewOutput(), *fSync, containers)
+			err := backend.Run(ctx, multi.NewOutput(backend.GetName()), *fSync, containers)
 			if err != nil {
 				log.Printf("Backend failed: %s", err)
 			}
@@ -161,8 +185,11 @@ func SetupSignalHandler(cancel context.CancelFunc) {
 	}()
 }
 
-func ConsulFromConfig(cfg config.Config) *consul.Backend {
-	consulBackend, err := consul.New(cfg.ConsulConfig, consul.WithStaticLabels([]string{"dc=remote"}))
+func ConsulFromConfig(cfg config.Config, log *logrus.Logger) *consul.Backend {
+	consulBackend, err := consul.New(cfg.ConsulConfig,
+		consul.WithStaticLabels([]string{"dc=remote"}),
+		consul.WithLogger(log),
+	)
 	if err != nil {
 		log.Fatalf("could not create consul backend: %s", err)
 	}
@@ -171,8 +198,11 @@ func ConsulFromConfig(cfg config.Config) *consul.Backend {
 	return consulBackend
 }
 
-func EtcdFromConfig(cfg config.Config) *etcd.Backend {
-	c, err := etcd.New(*cfg.EtcdConfig, etcd.WithStaticLabels(cfg.StaticLabels))
+func EtcdFromConfig(cfg config.Config, log *logrus.Logger) *etcd.Backend {
+	c, err := etcd.New(*cfg.EtcdConfig,
+		etcd.WithStaticLabels(cfg.StaticLabels),
+		etcd.WithLogger(log),
+	)
 	if err != nil {
 		log.Fatalf("could not create etcd backend: %s", err)
 	}

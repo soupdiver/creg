@@ -3,25 +3,29 @@ package consul
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
 	"github.com/docker/docker/api/types"
 	consulapi "github.com/hashicorp/consul/api"
+	"github.com/sirupsen/logrus"
 
 	"github.com/soupdiver/creg/backends"
 	"github.com/soupdiver/creg/docker"
 )
 
 type Backend struct {
+	Name           string
+	Log            *logrus.Entry
 	ConsulClient   *consulapi.Client
 	ForwardAddress string
 	StaticLabels   []string
 }
 
 func New(cfg *consulapi.Config, options ...ConsulOption) (*Backend, error) {
-	b := &Backend{}
+	b := &Backend{
+		Name: "consul",
+	}
 
 	for _, option := range options {
 		option(b)
@@ -55,33 +59,34 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Consul exiiting: %s", "context cancelled")
+			b.Log.Infof("Consul exiiting: %s", "context cancelled")
 			return nil
 		case event := <-events:
-			// log.Printf("received %s for %s", event.Event.Action, event.Container.ID)
 			switch event.Event.Action {
 			case "start":
 				ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
 				servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 				err := b.RegisterServices(servicesByPort)
 				if err != nil {
-					log.Printf("Could not RegisterServices: %s", err)
+					b.Log.Errorf("Could not RegisterServices: %s", err)
 					continue
 				}
 			case "stop":
-				// log.Printf("deregister: %s", event.Container.ID)
-
 				ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
 				servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 
 				err := b.DeregisterServices(servicesByPort)
 				if err != nil {
-					log.Printf("Could not DeregisterServices: %s", err)
+					b.Log.Errorf("Could not DeregisterServices: %s", err)
 					continue
 				}
 			}
 		}
 	}
+}
+
+func (b *Backend) GetName() string {
+	return b.Name
 }
 
 func (b *Backend) DeregisterServices(ports map[string]backends.ServiceWithLabels) error {
@@ -90,7 +95,7 @@ func (b *Backend) DeregisterServices(ports map[string]backends.ServiceWithLabels
 
 		err := b.ConsulClient.Agent().ServiceDeregister(id)
 		if err != nil {
-			log.Printf("error deregister: %s", err)
+			b.Log.Errorf("error deregister: %s", err)
 			continue
 		}
 
@@ -109,22 +114,16 @@ func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) 
 			Tags:    service.Labels,
 		}
 
-		// log.Printf("adding: %s", port)
 		var err error
 		registration.Port, err = strconv.Atoi(strings.Split(port, "/")[0])
 		if err != nil {
-			log.Printf("error parsing port: %s", err)
+			b.Log.Errorf("error parsing port: %s", err)
 			continue
 		}
 
-		// err = b.ConsulClient.Agent().ServiceDeregister(service.Name)
-		// if err != nil {
-		// 	log.Printf("error deregister: %s", err)
-		// }
-
 		err = b.ConsulClient.Agent().ServiceRegister(registration)
 		if err != nil {
-			log.Printf("error register: %s", err)
+			b.Log.Errorf("error register: %s", err)
 		}
 	}
 
@@ -132,7 +131,7 @@ func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) 
 }
 
 func (b *Backend) Purge() error {
-	log.Printf("Purging consul services")
+	b.Log.Debugf("Purging consul services")
 	// retrieve all consul containers and delete the ones where name has ServerPrefix
 	services, err := b.ConsulClient.Agent().Services()
 	if err != nil {
@@ -140,13 +139,13 @@ func (b *Backend) Purge() error {
 	}
 
 	for name, service := range services {
-		log.Printf("purge service: %s - %s", name, service.ID)
+		b.Log.Debugf("Purge service: %s - %s", name, service.ID)
 		if strings.HasPrefix(name, backends.ServicePrefix) {
 			err := b.ConsulClient.Agent().ServiceDeregister(service.ID)
 			if err != nil {
-				log.Printf("Could not agent.ServiceDeregister: %s", err)
+				b.Log.Errorf("Could not agent.ServiceDeregister: %s", err)
 			} else {
-				log.Printf("Deregistered service: %s", service.ID)
+				b.Log.Debugf("Deregistered service: %s", service.ID)
 			}
 		}
 	}
@@ -155,7 +154,7 @@ func (b *Backend) Purge() error {
 }
 
 func (b *Backend) Refresh(containers []types.ContainerJSON) error {
-	log.Printf("Refreshing %d consul services", len(containers))
+	b.Log.Debugf("Refreshing %d consul services", len(containers))
 	for _, container := range containers {
 		// log.Printf("container labels: %+v", container.Config.Labels)
 		ports := backends.ExtractPorts(container.Config.Labels, backends.ServiceLabelPort)
@@ -171,7 +170,7 @@ func (b *Backend) Refresh(containers []types.ContainerJSON) error {
 		// log.Printf("Registering services: %+v", servicesByPort)
 		err := b.RegisterServices(servicesByPort)
 		if err != nil {
-			log.Printf("Could not RegisterServices: %s", err)
+			b.Log.Errorf("Could not RegisterServices: %s", err)
 			continue
 		}
 	}
@@ -184,5 +183,11 @@ type ConsulOption func(*Backend)
 func WithStaticLabels(labels []string) func(b *Backend) {
 	return func(b *Backend) {
 		b.StaticLabels = labels
+	}
+}
+
+func WithLogger(log *logrus.Logger) func(b *Backend) {
+	return func(b *Backend) {
+		b.Log = log.WithField("backend", "consul")
 	}
 }

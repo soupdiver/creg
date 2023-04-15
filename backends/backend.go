@@ -11,6 +11,7 @@ type Backend interface {
 	Run(ctx context.Context, events chan docker.ContainerEvent, purgeOnStart bool, containersToRefresh []types.ContainerJSON) error
 	Purge() error
 	Refresh(containers []types.ContainerJSON) error
+	GetName() string
 }
 
 type ServiceWithLabels struct {

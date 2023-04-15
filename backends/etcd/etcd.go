@@ -3,17 +3,20 @@ package etcd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
+	clientv3 "go.etcd.io/etcd/client/v3"
+
 	"github.com/docker/docker/api/types"
+	"github.com/sirupsen/logrus"
 	"github.com/soupdiver/creg/backends"
 	"github.com/soupdiver/creg/docker"
-	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 type Backend struct {
+	Name           string
+	Log            *logrus.Entry
 	EtcdClient     *clientv3.Client
 	ForwardAddress string
 	StaticLabels   []string
@@ -28,6 +31,7 @@ func New(cfg clientv3.Config, options ...EtcdOption) (*Backend, error) {
 	}
 
 	b := &Backend{
+		Name:       "etcd",
 		EtcdClient: c,
 	}
 
@@ -60,20 +64,24 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 		case <-ctx.Done():
 			return nil
 		case event := <-events:
+			ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
+			servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
+
 			switch event.Event.Action {
 			case "start":
-				ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
-				servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
+				b.Log.Debugf("Registering services: %v", servicesByPort)
 				err := b.RegisterServices(servicesByPort)
 				if err != nil {
-					log.Printf("Could not RegisterServices: %s", err)
+					b.Log.Errorf("Could not RegisterServices: %s", err)
 					continue
 				}
 			case "stop":
-				// err = b.Purge()
-				// if err != nil {
-				// 	log.Printf("could not purge: %w", err)
-				// }
+				b.Log.Debugf("Unregistering services: %v", servicesByPort)
+				err := b.UnregisterServices(servicesByPort)
+				if err != nil {
+					b.Log.Errorf("Could not UnregisterServices: %s", err)
+					continue
+				}
 			}
 		}
 	}
@@ -96,19 +104,21 @@ func (b *Backend) Refresh(containers []types.ContainerJSON) error {
 	return nil
 }
 
-func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) error {
-	var err error
+func GenerateServiceKey(service string) string {
 	hostname, err := os.Hostname()
 	if err != nil {
-		return err
+		hostname = "unknown"
 	}
+	return backends.ServicePrefix + "/" + service + "/" + hostname
+}
 
-	for port, service := range ports {
-		// Use the etcd client to put the key-value pair
+func (b *Backend) UnregisterServices(ports map[string]backends.ServiceWithLabels) error {
+	var err error
+	for _, service := range ports {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err = b.EtcdClient.Put(ctx, backends.ServicePrefix+"/"+service.Name+"/"+hostname, fmt.Sprintf("%s:%s", b.ForwardAddress, port))
+		_, err = b.EtcdClient.Delete(ctx, GenerateServiceKey(service.Name))
 		if err != nil {
 			return err
 		}
@@ -117,8 +127,35 @@ func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) 
 	return nil
 }
 
+func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) error {
+	var err error
+
+	for port, service := range ports {
+		// Use the etcd client to put the key-value pair
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		_, err = b.EtcdClient.Put(ctx, GenerateServiceKey(service.Name), fmt.Sprintf("%s:%s", b.ForwardAddress, port))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *Backend) GetName() string {
+	return b.Name
+}
+
 func WithStaticLabels(labels []string) func(b *Backend) {
 	return func(b *Backend) {
 		b.StaticLabels = labels
+	}
+}
+
+func WithLogger(log *logrus.Logger) func(b *Backend) {
+	return func(b *Backend) {
+		b.Log = log.WithField("backend", "etcd")
 	}
 }

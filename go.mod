@@ -8,8 +8,6 @@ require (
 	github.com/spf13/pflag v1.0.5
 )
 
-// replace github.com/Sirupsen/logrus => github.com/sirupsen/logrus v1.8.1
-
 require (
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
@@ -22,6 +20,7 @@ require (
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2
+	github.com/sirupsen/logrus v1.9.0
 	github.com/stretchr/testify v1.8.2 // indirect
 	go.etcd.io/etcd/client/v3 v3.5.8
 	golang.org/x/time v0.3.0 // indirect

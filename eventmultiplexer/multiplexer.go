@@ -3,26 +3,27 @@ package eventmultiplexer
 import (
 	"context"
 	"log"
+	"strings"
 
 	"github.com/soupdiver/creg/docker"
 )
 
 type DockerEventMultiplexer struct {
 	In  <-chan docker.ContainerEvent
-	Out []chan docker.ContainerEvent
+	Out map[string]chan docker.ContainerEvent
 }
 
 func New(in <-chan docker.ContainerEvent) *DockerEventMultiplexer {
 	return &DockerEventMultiplexer{
 		In:  in,
-		Out: []chan docker.ContainerEvent{},
+		Out: make(map[string]chan docker.ContainerEvent),
 	}
 }
 
-func (m *DockerEventMultiplexer) NewOutput() chan docker.ContainerEvent {
+func (m *DockerEventMultiplexer) NewOutput(backendName string) chan docker.ContainerEvent {
 	c := make(chan docker.ContainerEvent, 5)
 
-	m.Out = append(m.Out, c)
+	m.Out[backendName] = c
 
 	return c
 }
@@ -39,8 +40,20 @@ func (m *DockerEventMultiplexer) Run(ctx context.Context) {
 					log.Printf("Multiplexer exiiting: %s", "channel closed")
 					return
 				}
-				for _, backend := range m.Out {
-					backend <- event
+				for name, cOut := range m.Out {
+				Labels:
+					for k, v := range event.Container.Config.Labels {
+						if k == "creg.backends" {
+							split := strings.Split(v, ",")
+							for _, backend := range split {
+								if backend == name || backend == "all" {
+									cOut <- event
+									break Labels
+								}
+							}
+							event.Container.Config.Labels["creg"] = v
+						}
+					}
 				}
 			}
 		}
