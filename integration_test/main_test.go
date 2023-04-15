@@ -183,25 +183,27 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	for i := 0; i < 10; i++ {
-		_, err = consulClient.Agent().Services()
-		if err != nil {
-			log.Printf("wait consul")
-			time.Sleep(1 * time.Second)
-		} else {
-			break
-		}
-	}
+	// for i := 0; i < 10; i++ {
+	// 	_, err = consulClient.Agent().Services()
+	// 	if err != nil {
+	// 		log.Printf("wait consul")
+	// 		time.Sleep(1 * time.Second)
+	// 	} else {
+	// 		break
+	// 	}
+	// }
 
-	for i := 0; i < 10; i++ {
-		_, err = EtcdClient.MemberList(context.Background())
-		if err != nil {
-			log.Printf("wait etcd")
-			time.Sleep(1 * time.Second)
-		} else {
-			break
-		}
-	}
+	// for i := 0; i < 10; i++ {
+	// 	_, err = EtcdClient.MemberList(context.Background())
+	// 	if err != nil {
+	// 		log.Printf("wait etcd")
+	// 		time.Sleep(1 * time.Second)
+	// 	} else {
+	// 		break
+	// 	}
+	// }
+
+	time.Sleep(5 * time.Second)
 
 	// run tests
 	code := m.Run()
