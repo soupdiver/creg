@@ -24,6 +24,7 @@ jobs:
           cd integration_test
           docker-compose up -d
           sleep 5
+          docker ps -a
           docker-compose down
       # - name: Build
       #   run: |
