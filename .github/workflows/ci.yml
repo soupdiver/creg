@@ -23,7 +23,7 @@ jobs:
       - name: Test
         run: |
           # go test -v ./...
-          apk add curl
+          # apk add curl
 
           make image-docker
           docker tag soupdiver/creg:latest soupdiver/creg:testing
