@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: soupdiver/creg-ci:latest
+      workdir: /src
     steps:
       - run: ls -la
       - name: Checkout
