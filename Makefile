@@ -1,4 +1,3 @@
-.PHONY: build test
 build:
 	goreleaser build --snapshot --rm-dist
 
@@ -27,3 +26,5 @@ test: image-docker
 
 clean:
 	rm -rf ./dist
+
+.PHONY: build release image-docker image-docker-push image-docker-ci image-docker-ci-push test clean
