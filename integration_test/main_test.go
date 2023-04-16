@@ -87,6 +87,11 @@ func TestEtcdlStartAndStop(t *testing.T) {
 }
 
 func HelperContainerCreateAndStart(t *testing.T, cli *client.Client, image, name string, labels map[string]string) (string, func()) {
+	_, err := cli.ImagePull(context.Background(), image, dockertypes.ImagePullOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	resp, err := cli.ContainerCreate(context.Background(), &container.Config{
 		Image:  image,
 		Labels: labels,
