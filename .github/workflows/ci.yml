@@ -12,7 +12,10 @@ jobs:
     container:
       image: soupdiver/creg-ci:latest
     steps:
+      - run : pwd
       - run: mkdir -p /src && cd /src
+      - run : pwd
+      - run : git config --global --add safe.directory /__w/creg/creg
       - run: ls -la
       - name: Checkout
         uses: actions/checkout@v2
@@ -35,6 +38,8 @@ jobs:
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
+          pwd
+          ls -la
           GITHUB_TOKEN=${{ secrets.FELIX_TOKEN }} goreleaser release
       
         
