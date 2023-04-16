@@ -8,7 +8,7 @@ release:
 
 image-docker:
 	ls -la
-	ls -la dist
+	ls -l dist/creg_linux_amd64_v1/creg
 	docker build -t soupdiver/creg:latest .
 
 image-docker-push: image-docker
