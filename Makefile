@@ -1,11 +1,14 @@
 .PHONY: build test
 build:
 	goreleaser build --snapshot --rm-dist
+	ls -la dist
 
 release:
 	goreleaser --rm-dist
 
-image-docker: build
+image-docker:
+	ls -la
+	ls -la dist
 	docker build -t soupdiver/creg:latest .
 
 image-docker-push: image-docker
