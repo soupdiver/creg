@@ -196,15 +196,15 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	// for i := 0; i < 10; i++ {
-	// 	_, err = EtcdClient.MemberList(context.Background())
-	// 	if err != nil {
-	// 		log.Printf("wait etcd")
-	// 		time.Sleep(1 * time.Second)
-	// 	} else {
-	// 		break
-	// 	}
-	// }
+	for i := 0; i < 10; i++ {
+		_, err = EtcdClient.MemberList(context.Background())
+		log.Printf("check etcd")
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		} else {
+			i = 10
+		}
+	}
 
 	time.Sleep(5 * time.Second)
 
