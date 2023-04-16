@@ -22,22 +22,22 @@ jobs:
           make build
       - name: Test
         run: |
-          # go test -v ./...
-          # apk add curl
-
           make image-docker
           docker tag soupdiver/creg:latest soupdiver/creg:testing
+          go test -v ./...
           
-          docker compose -f integration_test/docker-compose.yml up -d
-          sleep 5
-          docker ps -a
+          # apk add curl
+          
+          # docker compose -f integration_test/docker-compose.yml up -d
+          # sleep 5
+          # docker ps -a
 
-          docker logs integration_test-consul-1
+          # docker logs integration_test-consul-1
           
-          curl -v localhost:8500
+          # curl -v localhost:8500
           
-          docker logs integration_test-consul-1
-          docker compose -f integration_test/docker-compose.yml down
+          # docker logs integration_test-consul-1
+          # docker compose -f integration_test/docker-compose.yml down
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
