@@ -1,5 +1,5 @@
 FROM alpine:3
 
-COPY ./bin/creg /creg
+COPY ./creg_linux_amd64_v1/creg /creg
 
 CMD ["/creg"]

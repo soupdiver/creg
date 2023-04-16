@@ -1,7 +1,9 @@
 .PHONY: build test
 build:
-	@mkdir -p bin
-	CGO_ENABLED=0 go build -v -ldflags "-s -w" -o ./bin/creg ./main.go
+	goreleaser --skip-publish --auto-snapshot --clean
+
+release:
+	goreleaser --rm-dist
 
 image-docker: build
 	docker build -t soupdiver/creg:latest .
