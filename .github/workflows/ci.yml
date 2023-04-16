@@ -9,8 +9,8 @@ on:
 jobs:
   build:
     runs-on: self-hosted
-    container:
-      image: soupdiver/creg-ci:latest
+    # container:
+    #   image: soupdiver/creg-ci:latest
     steps:
       - run : git config --global --add safe.directory $(pwd)
       - name: Checkout
@@ -23,7 +23,7 @@ jobs:
       - name: Test
         run: |
           # go test -v ./...
-          apk add curl
+          # apk add curl
 
           make image-docker
           docker tag soupdiver/creg:latest soupdiver/creg:testing
@@ -31,6 +31,8 @@ jobs:
           docker compose -f integration_test/docker-compose.yml up -d
           sleep 5
           docker ps -a
+
+          docker logs integration_test-consul-1
           
           curl -v localhost:8500
           
