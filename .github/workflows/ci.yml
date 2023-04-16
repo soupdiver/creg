@@ -12,7 +12,7 @@ jobs:
     container:
       image: soupdiver/creg-ci:latest
     steps:
-      - run: cd /src
+      - run: mkdir -p /src && cd /src
       - run: ls -la
       - name: Checkout
         uses: actions/checkout@v2
