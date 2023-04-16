@@ -1,6 +1,6 @@
 .PHONY: build test
 build:
-	goreleaser --skip-publish --auto-snapshot --clean
+	goreleaser build --snapshot --rm-dist
 
 release:
 	goreleaser --rm-dist
