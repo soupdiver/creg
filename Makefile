@@ -1,14 +1,11 @@
 .PHONY: build test
 build:
 	goreleaser build --snapshot --rm-dist
-	ls -la dist
 
 release:
-	goreleaser --rm-dist
+	goreleaser --clean
 
 image-docker:
-	ls -la
-	ls -l dist/creg_linux_amd64_v1/creg
 	docker build -t soupdiver/creg:latest .
 
 image-docker-push: image-docker
@@ -21,8 +18,12 @@ image-docker-ci-push: image-docker-ci
 	docker push soupdiver/creg-ci:latest
 
 test: image-docker
-	docker tag soupdiver/creg:latest soupdiver/creg:testing
-	go test -v ./...
+	# Unit tests
+	go test $(go list ./... | grep -v /integration_test/)
+	
+	@docker tag soupdiver/creg:latest soupdiver/creg:testing
+	# Integration tests not cached
+	go test -v -count=1 ./integration_test/...
 
 clean:
-	rm -rf ./bin
+	rm -rf ./dist
