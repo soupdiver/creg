@@ -19,12 +19,13 @@ jobs:
           fetch-depth: 0
       - name: Build
         run: |
-          make image-docker
+          make build
       - name: Test
         run: |
           # go test -v ./...
           apk add curl
 
+          make image-docker
           docker tag soupdiver/creg:latest soupdiver/creg:testing
           
           docker compose -f integration_test/docker-compose.yml up -d
