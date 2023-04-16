@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: soupdiver/creg-ci:latest
-      # volumes:
-        # - /var/run/docker.sock:/var/run/docker.sock
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -29,9 +27,9 @@ jobs:
           sleep 5
           docker ps -a
           docker compose -f integration_test/docker-compose.yml down
-
-      # - name: Build
-      #   run: |
-      #     goreleaser build --snapshot --clean
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          goreleaser release
       
         
