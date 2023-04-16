@@ -12,10 +12,13 @@ jobs:
     container:
       image: soupdiver/creg-ci:latest
     steps:
+      - run: ls -la
       - name: Checkout
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
+      - run: ls -la
+      - run: git status || true
       - name: Build
         run: |
           make image-docker
