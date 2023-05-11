@@ -6,6 +6,7 @@ import (
 )
 
 type Config struct {
+	ID             string
 	ForwardAddress string
 	StaticLabels   []string
 

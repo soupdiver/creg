@@ -43,7 +43,7 @@ func TestEtcdlStartAndStop(t *testing.T) {
 
 	labels := map[string]string{
 		"creg":          "true",
-		"creg.ports":    "'80/tcp:etcd-nginx'",
+		"creg.port":     "'80/tcp:etcd-nginx'",
 		"creg.backends": "etcd",
 	}
 
@@ -123,7 +123,7 @@ func TestConsulStartAndStop(t *testing.T) {
 
 	labels := map[string]string{
 		"creg":          "true",
-		"creg.ports":    "'80/tcp:consul-nginx'",
+		"creg.port":     "'80/tcp:consul-nginx'",
 		"creg.backends": "consul",
 	}
 

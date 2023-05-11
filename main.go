@@ -12,7 +12,6 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
-
 	flag "github.com/spf13/pflag"
 
 	"github.com/soupdiver/creg/backends"
@@ -24,7 +23,7 @@ import (
 )
 
 // Create a new instance of the logger. You can have any number of instances.
-var log = logrus.New()
+var logr = logrus.New()
 
 var (
 	fAddress       = flag.String("address", "", "Address to use for consul services")
@@ -37,16 +36,17 @@ var (
 	fLogColor      = flag.Bool("color", true, "Colorize log output")
 	fSync          = flag.Bool("sync", false, "Sync consul services on start")
 	fEnableLabel   = flag.String("enable", "creg", "label on which to enable creg")
+	fID            = flag.String("id", "creg-default", "Instance ID")
 )
 
 var (
-	DefaultLabels = []string{"dc=remote"}
-	CREDLabel     = "consul-reg.port"
+// DefaultLabels = []string{"dc=remote"}
+// CREDLabel     = "consul-reg.port"
 )
 
 func main() {
 	if err := Run(); err != nil {
-		log.Fatalf("Fatal: %s", err)
+		logr.Fatalf("Fatal: %s", err)
 	}
 }
 
@@ -77,22 +77,24 @@ func Run() error {
 	defer cancel()
 
 	// Logging defaults
-	log.Out = os.Stdout
-	log.SetLevel(logrus.InfoLevel)
-	log.SetFormatter(&logrus.JSONFormatter{})
+	logr.Out = os.Stdout
+	logr.SetLevel(logrus.InfoLevel)
+	logr.SetFormatter(&logrus.JSONFormatter{})
 	if !*fLogColor {
-		log.SetFormatter(&logrus.TextFormatter{
+		logr.SetFormatter(&logrus.TextFormatter{
 			DisableColors: true,
 		})
 	}
 
 	if fDebug != nil && *fDebug {
-		log.SetLevel(logrus.DebugLevel)
+		logr.SetLevel(logrus.DebugLevel)
 	}
 
 	if fDebugCaller != nil && *fDebugCaller {
-		log.SetReportCaller(true)
+		logr.SetReportCaller(true)
 	}
+
+	log := logr.WithFields(logrus.Fields{"id": *fID})
 
 	log.WithField("debug", *fDebug).Infof("Starting")
 
@@ -100,13 +102,14 @@ func Run() error {
 	cfg := config.DefaultConfig
 
 	// Overwrite settings as needed
+	cfg.ID = *fID
 	if *fConsulAddress != "" {
 		cfg.ConsulConfig.Address = *fConsulAddress
 	}
 	if *fEtcdAddress != "" {
 		cfg.EtcdConfig.Endpoints = append(cfg.EtcdConfig.Endpoints, *fEtcdAddress)
 	}
-	cfg.StaticLabels = []string{"dc=remote"}
+	cfg.StaticLabels = *fLabels
 	cfg.ForwardAddress = *fAddress
 
 	// Setup Docker client
@@ -124,8 +127,9 @@ func Run() error {
 	var enabledBackends []backends.Backend
 
 	if *fConsulAddress != "" {
-		log.Printf("Enable consul")
+		log.WithField("label", *fEnableLabel).Printf("Enable consul")
 		enabledBackends = append(enabledBackends, ConsulFromConfig(cfg, log))
+		enabledBackends[len(enabledBackends)-1].(*consul.Backend).ServicePrefix = *fEnableLabel
 	}
 	if *fEtcdAddress != "" {
 		log.Printf("Enable etcd")
@@ -133,7 +137,7 @@ func Run() error {
 	}
 
 	// Get currently running containers that we should register
-	containers, err := docker.GetContainersForCreg(ctx, dockerClient, "creg")
+	containers, err := docker.GetContainersForCreg(ctx, dockerClient, *fEnableLabel)
 	if err != nil {
 		return fmt.Errorf("could not get creg containers: %w", err)
 	}
@@ -171,7 +175,7 @@ func SetupSignalHandler(cancel context.CancelFunc) {
 	go func() {
 		s := <-c
 
-		log.Printf("Received %s, purging and cancelling context", s)
+		logr.Printf("Received %s, purging and cancelling context", s)
 
 		// var err error
 		// for _, backend := range enabledBackends {
@@ -185,10 +189,11 @@ func SetupSignalHandler(cancel context.CancelFunc) {
 	}()
 }
 
-func ConsulFromConfig(cfg config.Config, log *logrus.Logger) *consul.Backend {
+func ConsulFromConfig(cfg config.Config, log *logrus.Entry) *consul.Backend {
 	consulBackend, err := consul.New(cfg.ConsulConfig,
-		consul.WithStaticLabels([]string{"dc=remote"}),
+		consul.WithStaticLabels(cfg.StaticLabels),
 		consul.WithLogger(log),
+		consul.WithID(cfg.ID),
 	)
 	if err != nil {
 		log.Fatalf("could not create consul backend: %s", err)
@@ -198,7 +203,7 @@ func ConsulFromConfig(cfg config.Config, log *logrus.Logger) *consul.Backend {
 	return consulBackend
 }
 
-func EtcdFromConfig(cfg config.Config, log *logrus.Logger) *etcd.Backend {
+func EtcdFromConfig(cfg config.Config, log *logrus.Entry) *etcd.Backend {
 	c, err := etcd.New(*cfg.EtcdConfig,
 		etcd.WithStaticLabels(cfg.StaticLabels),
 		etcd.WithLogger(log),

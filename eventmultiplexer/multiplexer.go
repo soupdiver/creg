@@ -23,7 +23,7 @@ func New(in <-chan docker.ContainerEvent) *DockerEventMultiplexer {
 }
 
 func (m *DockerEventMultiplexer) NewOutput(backendName string) chan docker.ContainerEvent {
-	c := make(chan docker.ContainerEvent, 5)
+	c := make(chan docker.ContainerEvent)
 
 	m.outMtx.Lock()
 	m.Out[backendName] = c
@@ -45,17 +45,19 @@ func (m *DockerEventMultiplexer) Run(ctx context.Context) {
 					return
 				}
 				for name, cOut := range m.Out {
-				Labels:
-					for k, v := range event.Container.Config.Labels {
-						if k == "creg.backends" {
-							split := strings.Split(v, ",")
-							for _, backend := range split {
-								if backend == name || backend == "all" {
-									cOut <- event
-									break Labels
-								}
+					// If no backends are defined, send to all
+					if v, ok := event.Container.Config.Labels["creg.backends"]; !ok {
+						cOut <- event
+						continue
+					} else {
+						// If backends are defined filter for them
+						split := strings.Split(v, ",")
+					Backends:
+						for _, backend := range split {
+							if backend == name || backend == "all" {
+								cOut <- event
+								break Backends
 							}
-							event.Container.Config.Labels["creg"] = v
 						}
 					}
 				}
