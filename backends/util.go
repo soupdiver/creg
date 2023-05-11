@@ -53,7 +53,7 @@ type FilterFunc func(serviceLabels *[]string, containerLabels map[string]string,
 
 func TraefikLabelFilter(serviceLabels *[]string, containerLabels map[string]string, service string) {
 	for k, v := range containerLabels {
-		if strings.Contains(k, "."+service) || strings.Contains(k, "traefik.") {
+		if strings.Contains(k, "."+service+".") || k == "traefik.enable" {
 			*serviceLabels = append(*serviceLabels, fmt.Sprintf("%s=%s", k, v))
 		}
 	}

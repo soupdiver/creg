@@ -69,14 +69,14 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 
 			switch event.Event.Action {
 			case "start":
-				b.Log.Debugf("Registering services: %v", servicesByPort)
+				b.Log.Debugf("Registering services: %+v", servicesByPort)
 				err := b.RegisterServices(servicesByPort)
 				if err != nil {
 					b.Log.Errorf("Could not RegisterServices: %s", err)
 					continue
 				}
 			case "stop":
-				b.Log.Debugf("Unregistering services: %v", servicesByPort)
+				b.Log.Debugf("Unregistering services: %+v", servicesByPort)
 				err := b.UnregisterServices(servicesByPort)
 				if err != nil {
 					b.Log.Errorf("Could not UnregisterServices: %s", err)
@@ -154,7 +154,7 @@ func WithStaticLabels(labels []string) func(b *Backend) {
 	}
 }
 
-func WithLogger(log *logrus.Logger) func(b *Backend) {
+func WithLogger(log *logrus.Entry) func(b *Backend) {
 	return func(b *Backend) {
 		b.Log = log.WithField("backend", "etcd")
 	}

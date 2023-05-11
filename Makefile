@@ -4,7 +4,7 @@ build:
 release:
 	goreleaser --clean
 
-image-docker:
+image-docker: build
 	docker build -t soupdiver/creg:latest .
 
 image-docker-push: image-docker

@@ -26,7 +26,7 @@ func GetContainersForCreg(ctx context.Context, client *client.Client, label stri
 			// log.Printf("label: %+v", container.Labels[label])
 			continue
 		}
-		log.Printf("found container: %s", container.ID)
+		// log.Printf("found container: %s", container.ID)
 
 		container, err := client.ContainerInspect(ctx, container.ID)
 		if err != nil {
@@ -65,9 +65,15 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 						continue
 					}
 
+					// if v, ok := container.Config.Labels[label]; ok {
+					// log.Printf("found label %s: %s", label, v)
+					// }
+
 					if v, ok := container.Config.Labels[label]; !ok || v != "true" {
+						// log.Printf("discard label %s: %+v", label, v)
 						continue
 					}
+					// log.Printf("forward label %s: %+v", label, container.Config.Labels[label])
 
 					c <- ContainerEvent{
 						Event:     event,
