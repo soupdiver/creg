@@ -192,16 +192,19 @@ func TestMain(m *testing.M) {
 		if err != nil {
 			time.Sleep(1 * time.Second)
 		} else {
+			log.Printf("found consul")
 			i = 10
 		}
 	}
 
 	for i := 0; i < 10; i++ {
+		log.Printf("check etcd")
 		_, err = EtcdClient.MemberList(context.Background())
 		log.Printf("check etcd")
 		if err != nil {
 			time.Sleep(1 * time.Second)
 		} else {
+			log.Printf("found etcd")
 			i = 10
 		}
 	}
