@@ -199,8 +199,10 @@ func TestMain(m *testing.M) {
 
 	for i := 0; i < 10; i++ {
 		log.Printf("check etcd")
-		_, err = EtcdClient.MemberList(context.Background())
-		log.Printf("check etcd")
+		ctx := context.Background()
+		ctx, done := context.WithTimeout(ctx, 5*time.Second)
+		defer done()
+		_, err = EtcdClient.MemberList(ctx)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 		} else {
