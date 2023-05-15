@@ -172,7 +172,7 @@ func TestMain(m *testing.M) {
 
 	time.Sleep(1 * time.Second)
 	consulcfg := api.DefaultConfig()
-	consulcfg.Address = "127.0.0.1:8500"
+	consulcfg.Address = "http://localhost:8500"
 	consulClient, err = api.NewClient(consulcfg)
 	if err != nil {
 		panic(err)
