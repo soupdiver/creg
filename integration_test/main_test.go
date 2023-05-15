@@ -170,7 +170,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 	consulcfg := api.DefaultConfig()
 	consulcfg.Address = "http://localhost:8500"
 	consulClient, err = api.NewClient(consulcfg)
@@ -191,7 +191,7 @@ func TestMain(m *testing.M) {
 		_, err = consulClient.Agent().Services()
 		if err != nil {
 			log.Printf("err: %s", err)
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 			if i == 9 {
 				panic("no consul")
 			}
@@ -212,7 +212,7 @@ func TestMain(m *testing.M) {
 			if i == 9 {
 				panic("no etcd")
 			}
-			time.Sleep(1 * time.Second)
+			time.Sleep(2 * time.Second)
 		} else {
 			log.Printf("found etcd")
 			i = 10
