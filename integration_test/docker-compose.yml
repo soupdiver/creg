@@ -16,26 +16,24 @@ services:
       - ETCD_INITIAL_CLUSTER_STATE=new
       - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-1
     ports:
-      - "0.0.0.0:2379:2379"
+      - "2379:2379"
       - "2380:2380"
     volumes:
       - etcd-data:/etcd-data
     networks:
       - testing
-      - github-runners_default
+      - github-runners_default # to allow access from go testing
 
   consul:
     hostname: consul
     image: "consul:1.11.3"
     command: "agent -dev -client=0.0.0.0"
-    # environment:
-    #   - "CONSUL_BIND_INTERFACE=eth0"
     ports:
-      - "0.0.0.0:8500:8500"
+      - "8500:8500"
       - "8600:8600/udp"
     networks:
       - testing
-      - github-runners_default
+      - github-runners_default # to allow access from go testing
   
   creg:
     depends_on:
