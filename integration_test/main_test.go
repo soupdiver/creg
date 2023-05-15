@@ -172,14 +172,14 @@ func TestMain(m *testing.M) {
 
 	time.Sleep(1 * time.Second)
 	consulcfg := api.DefaultConfig()
-	consulcfg.Address = "consul:8500"
+	consulcfg.Address = "127.0.0.1:8500"
 	consulClient, err = api.NewClient(consulcfg)
 	if err != nil {
 		panic(err)
 	}
 
 	EtcdClient, err = clientv3.New(clientv3.Config{
-		Endpoints:   []string{"http://etcd:2379"},
+		Endpoints:   []string{"http://127.0.0.1:2379"},
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
