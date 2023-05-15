@@ -190,6 +190,7 @@ func TestMain(m *testing.M) {
 		log.Printf("check consul")
 		_, err = consulClient.Agent().Services()
 		if err != nil {
+			log.Printf("err: %s", err)
 			time.Sleep(1 * time.Second)
 			if i == 9 {
 				panic("no consul")
@@ -207,6 +208,7 @@ func TestMain(m *testing.M) {
 		defer done()
 		_, err = EtcdClient.MemberList(ctx)
 		if err != nil {
+			log.Printf("err: %s", err)
 			if i == 9 {
 				panic("no etcd")
 			}
