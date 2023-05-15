@@ -22,6 +22,7 @@ services:
       - etcd-data:/etcd-data
     networks:
       - testing
+      - github-runners_default
 
   consul:
     hostname: consul
