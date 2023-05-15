@@ -15,6 +15,7 @@ import (
 	flag "github.com/spf13/pflag"
 
 	"github.com/soupdiver/creg/backends"
+	adguardhomebackend "github.com/soupdiver/creg/backends/adguardhome"
 	"github.com/soupdiver/creg/backends/consul"
 	"github.com/soupdiver/creg/backends/etcd"
 	"github.com/soupdiver/creg/config"
@@ -28,17 +29,19 @@ import (
 var logr = logrus.New()
 
 var (
-	fAddress       = flag.String("address", "", "Address to use for consul services")
-	fConsulAddress = flag.String("consul", "", "Address of consul agent")
-	fEtcdAddress   = flag.String("etcd", "", "Address of etcd agent")
-	fHelp          = flag.BoolP("help", "h", false, "Print usage")
-	fDebug         = flag.BoolP("debug", "d", false, "Debug log")
-	fDebugCaller   = flag.BoolP("debugCaller", "g", false, "Debug caller log")
-	fLabels        = flag.StringSliceP("labels", "l", []string{}, "Labels to append tp consul services")
-	fLogColor      = flag.Bool("color", true, "Colorize log output")
-	fSync          = flag.Bool("sync", false, "Sync consul services on start")
-	fEnableLabel   = flag.String("enable", "creg", "label on which to enable creg")
-	fID            = flag.String("id", "creg-default", "Instance ID")
+	fAddress         = flag.String("address", "", "Address to use for consul services")
+	fConsulAddress   = flag.String("consul", "", "Address of consul agent")
+	fEtcdAddress     = flag.String("etcd", "", "Address of etcd agent")
+	fAdguardHome     = flag.String("adguardhome", "", "Address of adguardhome server")
+	fAdguardHomeAuth = flag.String("adguardhomeauth", "", "Auth of adguardhome server")
+	fHelp            = flag.BoolP("help", "h", false, "Print usage")
+	fDebug           = flag.BoolP("debug", "d", false, "Debug log")
+	fDebugCaller     = flag.BoolP("debugCaller", "g", false, "Debug caller log")
+	fLabels          = flag.StringSliceP("labels", "l", []string{}, "Labels to append tp consul services")
+	fLogColor        = flag.Bool("color", true, "Colorize log output")
+	fSync            = flag.Bool("sync", false, "Sync consul services on start")
+	fEnableLabel     = flag.String("enable", "creg", "label on which to enable creg")
+	fID              = flag.String("id", "creg-default", "Instance ID")
 )
 
 var (
@@ -142,10 +145,20 @@ func Run() error {
 		enabledBackends = append(enabledBackends, ConsulFromConfig(cfg, log))
 		enabledBackends[len(enabledBackends)-1].(*consul.Backend).ServicePrefix = *fEnableLabel
 	}
-	// if *fEtcdAddress != "" {
-	// 	log.Printf("Enable etcd")
-	// 	enabledBackends = append(enabledBackends, EtcdFromConfig(cfg, log))
-	// }
+
+	if *fEtcdAddress != "" {
+		log.Printf("Enable etcd")
+		enabledBackends = append(enabledBackends, EtcdFromConfig(cfg, log))
+	}
+
+	if *fAdguardHome != "" {
+		log.Printf("Enable adguardhome: %s", *fAdguardHomeAuth)
+		b, err := adguardhomebackend.New(*fAdguardHome, *fAdguardHomeAuth)
+		if err != nil {
+			return fmt.Errorf("could not create adguardhome backend: %w", err)
+		}
+		enabledBackends = append(enabledBackends, b)
+	}
 
 	// Get currently running containers that we should register
 	containers, err := docker.GetContainersForCreg(ctx, dockerClient, *fEnableLabel)

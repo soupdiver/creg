@@ -8,10 +8,9 @@ import (
 
 	clientv3 "go.etcd.io/etcd/client/v3"
 
-	"github.com/docker/docker/api/types"
 	"github.com/sirupsen/logrus"
 	"github.com/soupdiver/creg/backends"
-	"github.com/soupdiver/creg/docker"
+	ctypes "github.com/soupdiver/creg/types"
 )
 
 type Backend struct {
@@ -42,7 +41,7 @@ func New(cfg clientv3.Config, options ...EtcdOption) (*Backend, error) {
 	return b, nil
 }
 
-func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, purgeOnStart bool, containersToRefresh []types.ContainerJSON) error {
+func (b *Backend) Run(ctx context.Context, events chan ctypes.ContainerEventV2, purgeOnStart bool, containersToRefresh []ctypes.ContainerInfo) error {
 	var err error
 	if purgeOnStart {
 		err = b.Purge()
@@ -64,10 +63,10 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 		case <-ctx.Done():
 			return nil
 		case event := <-events:
-			ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
-			servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
+			ports := backends.ExtractPorts(event.Container.Labels, backends.ServiceLabelPort)
+			servicesByPort := backends.MapServices(ports, event.Container.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 
-			switch event.Event.Message.Action {
+			switch event.Action {
 			case "start":
 				b.Log.Debugf("Registering services: %+v", servicesByPort)
 				err := b.RegisterServices(servicesByPort)
@@ -100,7 +99,7 @@ func (b *Backend) Purge() error {
 	return nil
 }
 
-func (b *Backend) Refresh(containers []types.ContainerJSON) error {
+func (b *Backend) Refresh(containers []ctypes.ContainerInfo) error {
 	return nil
 }
 
