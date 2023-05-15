@@ -159,6 +159,12 @@ func TestMain(m *testing.M) {
 	}
 	cli.NegotiateAPIVersion(context.Background())
 
+	cmd := exec.Command("docker", "pull", "nginx")
+	err = cmd.Run()
+	if err != nil {
+		panic(err)
+	}
+
 	// start clean
 	err = applyDockerCompose("./docker-compose.yml", "down")
 	if err != nil {
