@@ -7,6 +7,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
+	ctypes "github.com/soupdiver/creg/types"
 )
 
 type ContainerEvent struct {
@@ -39,7 +40,7 @@ func GetContainersForCreg(ctx context.Context, client *client.Client, label stri
 	return cregContainers, nil
 }
 
-func GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ContainerEvent {
+func GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ctypes.ContainerEvent {
 	ctx, cancel := context.WithCancel(ctx)
 	es, cerr := client.Events(ctx, types.EventsOptions{})
 	go func() {
@@ -49,7 +50,7 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 		cancel()
 	}()
 
-	c := make(chan ContainerEvent)
+	c := make(chan ctypes.ContainerEvent)
 
 	go func() {
 		for {
@@ -75,7 +76,7 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 					}
 					// log.Printf("forward label %s: %+v", label, container.Config.Labels[label])
 
-					c <- ContainerEvent{
+					c <- ctypes.ContainerEvent{
 						Event:     event,
 						Container: container,
 					}
@@ -85,4 +86,11 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 	}()
 
 	return c
+}
+
+func ContainerInfoFromEvent(event ctypes.ContainerEvent) ctypes.ContainerInfo {
+	return ctypes.ContainerInfo{
+		ID:     event.Container.ID,
+		Labels: event.Container.Config.Labels,
+	}
 }
