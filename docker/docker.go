@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
 	ctypes "github.com/soupdiver/creg/types"
