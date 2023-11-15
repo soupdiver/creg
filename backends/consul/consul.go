@@ -3,6 +3,7 @@ package consul
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -50,30 +51,31 @@ func (b *Backend) Run(ctx context.Context, events chan ctypes.ContainerEventV2, 
 		}
 	}
 
-	if len(containersToRefresh) > 0 {
-		err = b.Refresh(containersToRefresh)
-		if err != nil {
-			return fmt.Errorf("could not refresh: %w", err)
-		}
-	}
+	// if len(containersToRefresh) > 0 {
+	// 	err = b.Refresh(containersToRefresh)
+	// 	if err != nil {
+	// 		return fmt.Errorf("could not refresh: %w", err)
+	// 	}
+	// }
+
+	containerIDsToServices := make(map[string]map[string]backends.ServiceWithLabels)
 
 	for {
-		// log.Printf("Conusl: %s", "waiting for event")
 		select {
 		case <-ctx.Done():
 			b.Log.Infof("Consul exting: %s", "context cancelled")
 			return nil
 		case event := <-events:
-			// log.Printf("handle event consul: %s", event.Event.Action)
+			// b.Log.Printf("Event: %s", event.Action)
 			switch event.Action {
 			case "start":
 				ports := backends.ExtractPorts(event.Container.Labels, backends.ServiceLabelPort)
-				// for port, info := range event.Container.NetworkSettings.Ports {
-				// 	if v, ok := ports[port.Port()+"/"+port.Proto()]; ok && len(info) > 0 {
-				// 		ports[info[0].HostPort] = v
-				// 		delete(ports, port.Port()+"/"+port.Proto())
-				// 	}
-				// }
+				for port, info := range event.Container.NetworkSettings.Ports {
+					if v, ok := ports[port.Port()+"/"+port.Proto()]; ok && len(info) > 0 {
+						ports[info[0].HostPort] = v
+						delete(ports, port.Port()+"/"+port.Proto())
+					}
+				}
 
 				servicesByPort := backends.MapServices(ports, event.Container.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 				err := b.RegisterServices(servicesByPort)
@@ -81,15 +83,15 @@ func (b *Backend) Run(ctx context.Context, events chan ctypes.ContainerEventV2, 
 					b.Log.Errorf("Could not RegisterServices: %s", err)
 					continue
 				}
+				containerIDsToServices[event.Container.ID] = servicesByPort
 			case "stop", "kill":
-				ports := backends.ExtractPorts(event.Container.Labels, backends.ServiceLabelPort)
-				servicesByPort := backends.MapServices(ports, event.Container.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
-
+				servicesByPort := containerIDsToServices[event.Container.ID]
 				err := b.DeregisterServices(servicesByPort)
 				if err != nil {
 					b.Log.Errorf("Could not DeregisterServices: %s", err)
 					continue
 				}
+				delete(containerIDsToServices, event.Container.ID)
 			default:
 				// log.Printf("discard:%s", event.Event.Action)
 			}
@@ -103,24 +105,20 @@ func (b *Backend) GetName() string {
 
 func (b *Backend) DeregisterServices(ports map[string]backends.ServiceWithLabels) error {
 	for _, service := range ports {
-		err := b.ConsulClient.Agent().ServiceDeregister(fmt.Sprintf("%s-%s", service.Name, b.ID))
+		err := b.ConsulClient.Agent().ServiceDeregister(fmt.Sprintf("%s-%s", b.ID, service.Name))
 		if err != nil {
 			b.Log.Errorf("error deregister: %s", err)
 			continue
 		}
-
-		// log.Printf("deregistered: %s - %s", service.Name, b.ID)
 	}
 	return nil
 }
 
 // functen that registgers ports to consul
 func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) error {
-	// log.Printf("Registering %+v services", ports)
-
 	for port, service := range ports {
 		registration := &consulapi.AgentServiceRegistration{
-			ID:      fmt.Sprintf("%s-%s", service.Name, b.ID),
+			ID:      fmt.Sprintf("%s-%s", b.ID, service.Name),
 			Name:    service.Name,
 			Address: b.ForwardAddress,
 			Tags:    service.Labels,
@@ -132,8 +130,6 @@ func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) 
 			b.Log.Errorf("error parsing port: %s", err)
 			continue
 		}
-
-		// log.Printf("Registering %+v", registration)
 
 		err = b.ConsulClient.Agent().ServiceRegister(registration)
 		if err != nil {
@@ -153,8 +149,9 @@ func (b *Backend) Purge() error {
 	}
 
 	for name, service := range services {
-		b.Log.Debugf("Purge service: %s - %s", name, service.ID)
 		if strings.HasPrefix(name, b.ServicePrefix) {
+			b.Log.Debugf("Purge service: %s - %s", name, service.ID)
+
 			err := b.ConsulClient.Agent().ServiceDeregister(service.ID)
 			if err != nil {
 				b.Log.Errorf("Could not agent.ServiceDeregister: %s", err)
@@ -174,6 +171,7 @@ func (b *Backend) Refresh(containers []ctypes.ContainerInfo) error {
 		ports := backends.ExtractPorts(container.Labels, backends.ServiceLabelPort)
 
 		for port, info := range container.NetworkSettings.Ports {
+			log.Printf("port: %+v", port)
 			if v, ok := ports[port.Port()+"/"+port.Proto()]; ok {
 				ports[info[0].HostPort] = v
 				delete(ports, port.Port()+"/"+port.Proto())

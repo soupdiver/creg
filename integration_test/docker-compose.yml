@@ -31,13 +31,14 @@ services:
     networks:
       - testing
       - github-runners_default # to allow access from go testing
-  
+
   creg:
     depends_on:
       - etcd
       - consul
     image: soupdiver/creg:testing
-    command: [
+    command:
+      [
         "/creg",
         "--address=6.6.6.6",
         "--consul=consul:8500",
@@ -45,7 +46,7 @@ services:
         "--enable=creg",
         "--sync",
         "--debug",
-        "--color=false",
+        "--color=false"
       ]
     volumes:
       - /run/docker.sock:/var/run/docker.sock
