@@ -1,11 +1,11 @@
-FROM golang:1.20-alpine
+FROM golang:1.21-alpine
 
 RUN apk add --no-cache git
 RUN curl -sfL https://goreleaser.com/static/run | sh
 RUN git config --global --add safe.directory /src
 RUN apk add --no-cache docker-cli docker-cli-compose make bash
-RUN wget https://github.com/goreleaser/goreleaser/releases/download/v1.17.1/goreleaser_1.17.1_x86_64.apk && \
-    apk add --allow-untrusted ./goreleaser_1.17.1_x86_64.apk && \
+RUN wget https://github.com/goreleaser/goreleaser/releases/download/v1.17.1/goreleaser_1.22.1_x86_64.apk && \
+    apk add --allow-untrusted ./goreleaser_1.22.1_x86_64.apk && \
     rm goreleaser_1.17.1_x86_64.apk
 
 RUN mkdir /src
