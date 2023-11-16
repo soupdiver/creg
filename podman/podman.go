@@ -5,13 +5,23 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
 
-	"github.com/docker/docker/client"
 	ctypes "github.com/soupdiver/creg/types"
 )
+
+type PodmanEventsClient struct {
+	SocketPath string
+}
+
+func NewPodmanEventsClient(path string) *PodmanEventsClient {
+	return &PodmanEventsClient{
+		SocketPath: path,
+	}
+}
 
 type Event struct {
 	Type   string `json:"Type"`
@@ -47,18 +57,40 @@ type Config struct {
 	Labels       map[string]string   `json:"Labels"`
 }
 
-func GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ctypes.ContainerEventV2 {
-	resp, err := http.Get("unix:///var/run/docker.sock/v1.40/events")
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	defer resp.Body.Close()
-
-	scanner := bufio.NewScanner(resp.Body)
-
+func (c *PodmanEventsClient) GetEventsForCreg(ctx context.Context, label string) chan ctypes.ContainerEventV2 {
 	eventsChannel := make(chan ctypes.ContainerEventV2)
+
 	go func() {
+		path := c.SocketPath
+		u := url.URL{Scheme: "http", Path: "/v1.40/events"}
+
+		conn, err := net.Dial("unix", path)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer conn.Close()
+
+		req, err := http.NewRequest("GET", u.String(), nil)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		err = req.Write(conn)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		resp, err := http.ReadResponse(bufio.NewReader(conn), req)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		defer resp.Body.Close()
+
+		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
 			var event Event
 			if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
@@ -66,24 +98,49 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 				continue
 			}
 			fmt.Printf("Received event: Type=%s, Action=%s, ID=%s\n", event.Type, event.Action, event.Actor.ID)
-
-			cfg, err := GetContainerConfig(ctx, client, event.Actor.ID)
-			if err != nil {
-				fmt.Println(err)
-				continue
-			}
-
-			eventsChannel <- ctypes.ContainerEventV2{
-				Container: ctypes.ContainerInfo{
-					ID:     event.Actor.ID,
-					Labels: cfg.Labels,
-				},
-			}
 		}
 		if err := scanner.Err(); err != nil {
 			fmt.Println(err)
-			close(eventsChannel)
 		}
+
+		// defer conn.Close()
+		// for {
+		// 	log.Printf("Listening for Podman events")
+		// 	conn, err := net.Dial("unix", c.SocketPath)
+		// 	if err != nil {
+		// 		fmt.Println(err)
+		// 		close(eventsChannel)
+		// 		// return nil
+		// 	}
+		// 	scanner := bufio.NewScanner(conn)
+		// 	for scanner.Scan() {
+		// 		var event Event
+		// 		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+		// 			fmt.Println(err)
+		// 			continue
+		// 		}
+		// 		fmt.Printf("Received event: Type=%s, Action=%s, ID=%s\n", event.Type, event.Action, event.Actor.ID)
+
+		// 		cfg, err := GetContainerConfig(ctx, event.Actor.ID)
+		// 		if err != nil {
+		// 			fmt.Println(err)
+		// 			continue
+		// 		}
+
+		// 		eventsChannel <- ctypes.ContainerEventV2{
+		// 			Action: event.Action,
+		// 			Container: ctypes.ContainerInfo{
+		// 				ID:     event.Actor.ID,
+		// 				Labels: cfg.Labels,
+		// 			},
+		// 		}
+		// 	}
+		// 	if err := scanner.Err(); err != nil {
+		// 		fmt.Println(err)
+		// 		close(eventsChannel)
+		// 	}
+		// }
+		log.Printf("Done listening for Podman events")
 	}()
 
 	return eventsChannel
@@ -96,7 +153,7 @@ func ContainerInfoFromEvent(event Event) ctypes.ContainerInfo {
 	}
 }
 
-func GetContainerConfig(ctx context.Context, client *client.Client, id string) (*Config, error) {
+func GetContainerConfig(ctx context.Context, id string) (*Config, error) {
 	path := "/var/run/docker.sock"
 	u := url.URL{Scheme: "http", Path: "/v1.40/containers/" + id + "/json"}
 

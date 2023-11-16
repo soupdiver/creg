@@ -14,6 +14,7 @@ type ContainerEvent struct {
 }
 
 type ContainerEventV2 struct {
+	Action    string
 	Container ContainerInfo
 }
 
@@ -24,4 +25,5 @@ type ContainerInfo struct {
 
 type CregEventSource interface {
 	GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ContainerEventV2
+	GetEventsForCregV2(ctx context.Context, laben string) chan ContainerEventV2
 }
