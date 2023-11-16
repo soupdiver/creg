@@ -3,14 +3,13 @@ package backends
 import (
 	"context"
 
-	"github.com/docker/docker/api/types"
-	"github.com/soupdiver/creg/docker"
+	ctypes "github.com/soupdiver/creg/types"
 )
 
 type Backend interface {
-	Run(ctx context.Context, events chan docker.ContainerEvent, purgeOnStart bool, containersToRefresh []types.ContainerJSON) error
+	Run(ctx context.Context, events chan ctypes.ContainerEventV2, purgeOnStart bool, containersToRefresh []ctypes.ContainerInfo) error
 	Purge() error
-	Refresh(containers []types.ContainerJSON) error
+	Refresh(containers []ctypes.ContainerInfo) error
 	GetName() string
 }
 
