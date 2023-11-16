@@ -19,6 +19,7 @@ jobs:
           fetch-depth: 0
       - name: Build
         run: |
+          cat Makefile
           make build
       - name: Test
         run: |
