@@ -20,6 +20,8 @@ import (
 	"github.com/soupdiver/creg/config"
 	"github.com/soupdiver/creg/docker"
 	"github.com/soupdiver/creg/eventmultiplexer"
+	"github.com/soupdiver/creg/podman"
+	"github.com/soupdiver/creg/types"
 )
 
 // Create a new instance of the logger. You can have any number of instances.
@@ -98,6 +100,8 @@ func Run() error {
 
 	log.WithField("debug", *fDebug).Infof("Starting")
 
+	ctx = context.WithValue(ctx, "log", log)
+
 	// Get default config
 	cfg := config.DefaultConfig
 
@@ -119,8 +123,15 @@ func Run() error {
 	}
 	defer dockerClient.Close()
 
+	podmanClient := podman.NewPodmanEventsClient("/run/podman/podman.sock")
+
+	inputs := []<-chan types.ContainerEventV2{
+		docker.GetEventsForCreg(ctx, dockerClient, *fEnableLabel),
+		podmanClient.GetEventsForCreg(ctx, *fEnableLabel),
+	}
+
 	// Setup event multiplexer
-	multi := eventmultiplexer.New(docker.GetEventsForCreg(ctx, dockerClient, *fEnableLabel))
+	multi := eventmultiplexer.New(inputs...)
 	multi.Run(ctx)
 
 	// Setup Backends
@@ -131,10 +142,10 @@ func Run() error {
 		enabledBackends = append(enabledBackends, ConsulFromConfig(cfg, log))
 		enabledBackends[len(enabledBackends)-1].(*consul.Backend).ServicePrefix = *fEnableLabel
 	}
-	if *fEtcdAddress != "" {
-		log.Printf("Enable etcd")
-		enabledBackends = append(enabledBackends, EtcdFromConfig(cfg, log))
-	}
+	// if *fEtcdAddress != "" {
+	// 	log.Printf("Enable etcd")
+	// 	enabledBackends = append(enabledBackends, EtcdFromConfig(cfg, log))
+	// }
 
 	// Get currently running containers that we should register
 	containers, err := docker.GetContainersForCreg(ctx, dockerClient, *fEnableLabel)

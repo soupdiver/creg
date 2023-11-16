@@ -2,11 +2,11 @@ package docker
 
 import (
 	"context"
-	"log"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/client"
+	"github.com/sirupsen/logrus"
 	ctypes "github.com/soupdiver/creg/types"
 )
 
@@ -15,70 +15,72 @@ type ContainerEvent struct {
 	Container types.ContainerJSON
 }
 
-func GetContainersForCreg(ctx context.Context, client *client.Client, label string) ([]types.ContainerJSON, error) {
+func GetContainersForCreg(ctx context.Context, client *client.Client, label string) ([]ctypes.ContainerInfo, error) {
 	containers, err := client.ContainerList(ctx, types.ContainerListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	cregContainers := []types.ContainerJSON{}
+	cregContainers := []ctypes.ContainerInfo{}
 	for _, container := range containers {
-		if v, ok := container.Labels[label]; !ok || v != "true" {
-			// log.Printf("label: %+v", container.Labels[label])
-			continue
+		if label != "" {
+			if v, ok := container.Labels[label]; !ok || v != "true" {
+				continue
+			}
 		}
-		// log.Printf("found container: %s", container.ID)
 
 		container, err := client.ContainerInspect(ctx, container.ID)
 		if err != nil {
 			return nil, err
 		}
 
-		cregContainers = append(cregContainers, container)
+		v := ConvertContainerFromDocker(container)
+		cregContainers = append(cregContainers, v)
 	}
 
 	return cregContainers, nil
 }
 
-func GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ctypes.ContainerEvent {
+func GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ctypes.ContainerEventV2 {
+	log := ctx.Value("log").(*logrus.Entry).WithField("backend", "docker")
+
 	ctx, cancel := context.WithCancel(ctx)
 	es, cerr := client.Events(ctx, types.EventsOptions{})
 	go func() {
 		for err := range cerr {
-			log.Printf("Error reading docker events: %s", err)
+			log.Errorf("Error receiving events: %s", err)
 		}
 		cancel()
 	}()
 
-	c := make(chan ctypes.ContainerEvent)
+	c := make(chan ctypes.ContainerEventV2)
 
 	go func() {
 		for {
+
 			select {
 			case <-ctx.Done():
-				// close(c)
+				return
 			case event := <-es:
+				log.Debugf("Received Event: %+v for container: %s", event.Action, event.Actor.ID)
 				switch event.Action {
 				case "start", "stop":
 					container, err := client.ContainerInspect(ctx, event.Actor.ID)
 					if err != nil {
-						log.Printf("err inspect: %s", err)
+						log.Errorf("Error inspecting container: %s", err)
 						continue
 					}
 
-					// if v, ok := container.Config.Labels[label]; ok {
-					// log.Printf("found label %s: %s", label, v)
-					// }
-
-					if v, ok := container.Config.Labels[label]; !ok || v != "true" {
-						// log.Printf("discard label %s: %+v", label, v)
-						continue
+					if label != "" {
+						if v, ok := container.Config.Labels[label]; !ok || v != "true" {
+							// log.Printf("discard label %s: %+v", label, v)
+							continue
+						}
 					}
-					// log.Printf("forward label %s: %+v", label, container.Config.Labels[label])
 
-					c <- ctypes.ContainerEvent{
-						Event:     event,
-						Container: container,
+					c <- ctypes.ContainerEventV2{
+						Action:    event.Action,
+						Container: ConvertContainerFromDocker(container),
 					}
 				}
 			}
@@ -93,4 +95,29 @@ func ContainerInfoFromEvent(event ctypes.ContainerEvent) ctypes.ContainerInfo {
 		ID:     event.Container.ID,
 		Labels: event.Container.Config.Labels,
 	}
+}
+
+func ConvertContainerFromDocker(in types.ContainerJSON) ctypes.ContainerInfo {
+	return ctypes.ContainerInfo{
+		ID:              in.ID,
+		Labels:          in.Config.Labels,
+		NetworkSettings: ConvertNetworkSettingsFromDocker(in.NetworkSettings),
+	}
+}
+
+func ConvertNetworkSettingsFromDocker(in *types.NetworkSettings) ctypes.NetworkSettings {
+	v := ctypes.NetworkSettings{
+		Ports: make(map[ctypes.Port][]ctypes.PortBinding),
+	}
+
+	for port, info := range in.Ports {
+		v.Ports[ctypes.Port(port.Port()+"/"+port.Proto())] = []ctypes.PortBinding{
+			{
+				HostIP:   info[0].HostIP,
+				HostPort: info[0].HostPort,
+			},
+		}
+	}
+
+	return v
 }

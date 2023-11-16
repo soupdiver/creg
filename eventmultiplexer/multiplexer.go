@@ -6,24 +6,24 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/soupdiver/creg/docker"
+	"github.com/soupdiver/creg/types"
 )
 
 type DockerEventMultiplexer struct {
-	In     <-chan docker.ContainerEvent
-	Out    map[string]chan docker.ContainerEvent
+	In     []<-chan types.ContainerEventV2
+	Out    map[string]chan types.ContainerEventV2
 	outMtx sync.RWMutex
 }
 
-func New(in <-chan docker.ContainerEvent) *DockerEventMultiplexer {
+func New(in ...<-chan types.ContainerEventV2) *DockerEventMultiplexer {
 	return &DockerEventMultiplexer{
 		In:  in,
-		Out: make(map[string]chan docker.ContainerEvent),
+		Out: make(map[string]chan types.ContainerEventV2),
 	}
 }
 
-func (m *DockerEventMultiplexer) NewOutput(backendName string) chan docker.ContainerEvent {
-	c := make(chan docker.ContainerEvent)
+func (m *DockerEventMultiplexer) NewOutput(backendName string) chan types.ContainerEventV2 {
+	c := make(chan types.ContainerEventV2)
 
 	m.outMtx.Lock()
 	m.Out[backendName] = c
@@ -33,35 +33,39 @@ func (m *DockerEventMultiplexer) NewOutput(backendName string) chan docker.Conta
 }
 
 func (m *DockerEventMultiplexer) Run(ctx context.Context) {
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				log.Printf("Multiplexer exiiting: %s", "context cancelled")
-				return
-			case event, ok := <-m.In:
-				if !ok {
-					log.Printf("Multiplexer exiiting: %s", "channel closed")
+	for _, input := range m.In {
+		input := input
+
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					log.Printf("Multiplexer exiiting: %s", "context cancelled")
 					return
-				}
-				for name, cOut := range m.Out {
-					// If no backends are defined, send to all
-					if v, ok := event.Container.Config.Labels["creg.backends"]; !ok {
-						cOut <- event
-						continue
-					} else {
-						// If backends are defined filter for them
-						split := strings.Split(v, ",")
-					Backends:
-						for _, backend := range split {
-							if backend == name || backend == "all" {
-								cOut <- event
-								break Backends
+				case event, ok := <-input:
+					if !ok {
+						log.Printf("Multiplexer exiiting: %s", "channel closed")
+						return
+					}
+					for name, cOut := range m.Out {
+						// If no backends are defined, send to all
+						if v, ok := event.Container.Labels["creg.backends"]; !ok {
+							cOut <- event
+							continue
+						} else {
+							// If backends are defined filter for them
+							split := strings.Split(v, ",")
+						Backends:
+							for _, backend := range split {
+								if backend == name || backend == "all" {
+									cOut <- event
+									break Backends
+								}
 							}
 						}
 					}
 				}
 			}
-		}
-	}()
+		}()
+	}
 }

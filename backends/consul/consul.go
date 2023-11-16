@@ -6,12 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	consulapi "github.com/hashicorp/consul/api"
 	"github.com/sirupsen/logrus"
 
 	"github.com/soupdiver/creg/backends"
-	"github.com/soupdiver/creg/docker"
+	ctypes "github.com/soupdiver/creg/types"
 )
 
 type Backend struct {
@@ -42,7 +41,7 @@ func New(cfg *consulapi.Config, options ...ConsulOption) (*Backend, error) {
 	return b, nil
 }
 
-func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, purgeOnStart bool, containersToRefresh []types.ContainerJSON) error {
+func (b *Backend) Run(ctx context.Context, events chan ctypes.ContainerEventV2, purgeOnStart bool, containersToRefresh []ctypes.ContainerInfo) error {
 	var err error
 	if purgeOnStart {
 		err = b.Purge()
@@ -66,25 +65,25 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 			return nil
 		case event := <-events:
 			// log.Printf("handle event consul: %s", event.Event.Action)
-			switch event.Event.Action {
+			switch event.Action {
 			case "start":
-				ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
-				for port, info := range event.Container.NetworkSettings.Ports {
-					if v, ok := ports[port.Port()+"/"+port.Proto()]; ok && len(info) > 0 {
-						ports[info[0].HostPort] = v
-						delete(ports, port.Port()+"/"+port.Proto())
-					}
-				}
+				ports := backends.ExtractPorts(event.Container.Labels, backends.ServiceLabelPort)
+				// for port, info := range event.Container.NetworkSettings.Ports {
+				// 	if v, ok := ports[port.Port()+"/"+port.Proto()]; ok && len(info) > 0 {
+				// 		ports[info[0].HostPort] = v
+				// 		delete(ports, port.Port()+"/"+port.Proto())
+				// 	}
+				// }
 
-				servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
+				servicesByPort := backends.MapServices(ports, event.Container.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 				err := b.RegisterServices(servicesByPort)
 				if err != nil {
 					b.Log.Errorf("Could not RegisterServices: %s", err)
 					continue
 				}
 			case "stop":
-				ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
-				servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
+				ports := backends.ExtractPorts(event.Container.Labels, backends.ServiceLabelPort)
+				servicesByPort := backends.MapServices(ports, event.Container.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 
 				err := b.DeregisterServices(servicesByPort)
 				if err != nil {
@@ -168,11 +167,11 @@ func (b *Backend) Purge() error {
 	return nil
 }
 
-func (b *Backend) Refresh(containers []types.ContainerJSON) error {
+func (b *Backend) Refresh(containers []ctypes.ContainerInfo) error {
 	b.Log.Debugf("Refreshing %d consul services", len(containers))
 	for _, container := range containers {
 		// log.Printf("container labels: %+v", container.Config.Labels)
-		ports := backends.ExtractPorts(container.Config.Labels, backends.ServiceLabelPort)
+		ports := backends.ExtractPorts(container.Labels, backends.ServiceLabelPort)
 
 		for port, info := range container.NetworkSettings.Ports {
 			if v, ok := ports[port.Port()+"/"+port.Proto()]; ok {
@@ -181,7 +180,7 @@ func (b *Backend) Refresh(containers []types.ContainerJSON) error {
 			}
 		}
 
-		servicesByPort := backends.MapServices(ports, container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
+		servicesByPort := backends.MapServices(ports, container.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 		err := b.RegisterServices(servicesByPort)
 		if err != nil {
 			b.Log.Errorf("Could not RegisterServices: %s", err)
