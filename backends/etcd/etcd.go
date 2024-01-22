@@ -67,7 +67,7 @@ func (b *Backend) Run(ctx context.Context, events chan docker.ContainerEvent, pu
 			ports := backends.ExtractPorts(event.Container.Config.Labels, backends.ServiceLabelPort)
 			servicesByPort := backends.MapServices(ports, event.Container.Config.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 
-			switch event.Event.Event.Action {
+			switch event.Event.Message.Action {
 			case "start":
 				b.Log.Debugf("Registering services: %+v", servicesByPort)
 				err := b.RegisterServices(servicesByPort)
