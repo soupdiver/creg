@@ -159,6 +159,12 @@ func TestMain(m *testing.M) {
 	}
 	cli.NegotiateAPIVersion(context.Background())
 
+	cmd := exec.Command("docker", "pull", "nginx")
+	err = cmd.Run()
+	if err != nil {
+		panic(err)
+	}
+
 	// start clean
 	err = applyDockerCompose("./docker-compose.yml", "down")
 	if err != nil {
@@ -170,16 +176,16 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(5 * time.Second)
 	consulcfg := api.DefaultConfig()
-	consulcfg.Address = "localhost:8500"
+	consulcfg.Address = "http://consul:8500"
 	consulClient, err = api.NewClient(consulcfg)
 	if err != nil {
 		panic(err)
 	}
 
 	EtcdClient, err = clientv3.New(clientv3.Config{
-		Endpoints:   []string{"http://localhost:2379"},
+		Endpoints:   []string{"http://etcd:2379"},
 		DialTimeout: 5 * time.Second,
 	})
 	if err != nil {
@@ -190,18 +196,31 @@ func TestMain(m *testing.M) {
 		log.Printf("check consul")
 		_, err = consulClient.Agent().Services()
 		if err != nil {
-			time.Sleep(1 * time.Second)
+			log.Printf("err: %s", err)
+			time.Sleep(2 * time.Second)
+			if i == 9 {
+				panic("no consul")
+			}
 		} else {
+			log.Printf("found consul")
 			i = 10
 		}
 	}
 
 	for i := 0; i < 10; i++ {
-		_, err = EtcdClient.MemberList(context.Background())
 		log.Printf("check etcd")
+		ctx := context.Background()
+		ctx, done := context.WithTimeout(ctx, 5*time.Second)
+		defer done()
+		_, err = EtcdClient.MemberList(ctx)
 		if err != nil {
-			time.Sleep(1 * time.Second)
+			log.Printf("err: %s", err)
+			if i == 9 {
+				panic("no etcd")
+			}
+			time.Sleep(2 * time.Second)
 		} else {
+			log.Printf("found etcd")
 			i = 10
 		}
 	}
