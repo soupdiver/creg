@@ -10,7 +10,7 @@ import (
 )
 
 type ContainerEvent struct {
-	Event     events.Message
+	Message   events.Message
 	Container types.ContainerJSON
 }
 
