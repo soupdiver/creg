@@ -25,7 +25,6 @@ import (
 	"github.com/soupdiver/creg/types"
 )
 
-// Create a new instance of the logger. You can have any number of instances.
 var logr = logrus.New()
 
 var (
