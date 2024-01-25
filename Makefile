@@ -24,6 +24,9 @@ test: image-docker
 	# Integration tests not cached
 	go test -v -count=1 ./integration_test/...
 
+test-integration: build
+	cd integration_test && go test -v creg_test.go
+
 clean:
 	rm -rf ./dist
 

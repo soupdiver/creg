@@ -62,7 +62,7 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 			case <-ctx.Done():
 				return
 			case event := <-es:
-				log.Debugf("Received Event: %+v for container: %s", event.Action, event.Actor.ID)
+				log.Debugf("Received Event: %+v for container: %s - %s", event.Action, event.Actor.Attributes["name"], event.Actor.ID)
 				switch event.Action {
 				case "start", "stop":
 					container, err := client.ContainerInspect(ctx, event.Actor.ID)
