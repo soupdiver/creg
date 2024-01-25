@@ -81,7 +81,7 @@ func (b *Backend) Run(ctx context.Context, events chan ctypes.ContainerEventV2, 
 					b.Log.Errorf("Could not RegisterServices: %s", err)
 					continue
 				}
-			case "stop":
+			case "stop", "kill":
 				ports := backends.ExtractPorts(event.Container.Labels, backends.ServiceLabelPort)
 				servicesByPort := backends.MapServices(ports, event.Container.Labels, b.StaticLabels, []backends.FilterFunc{backends.TraefikLabelFilter})
 

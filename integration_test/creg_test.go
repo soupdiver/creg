@@ -79,7 +79,6 @@ func TestConsulServiceRegistrationWithLabels(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to start container: %s", err)
 			}
-			defer myservice.Terminate(ctx)
 
 			registered, err := it.IsConsulServiceRegistered(serviceName, tCtx.ConsulPort)
 			if err != nil {
@@ -88,6 +87,20 @@ func TestConsulServiceRegistrationWithLabels(t *testing.T) {
 
 			if !registered {
 				t.Errorf("Expected service %s to be registered, but it was not", serviceName)
+			}
+
+			err = myservice.Terminate(ctx)
+			if err != nil {
+				t.Fatalf("Failed to terminate container: %s", err)
+			}
+
+			registered, err = it.IsConsulServiceRegistered(serviceName, tCtx.ConsulPort)
+			if err != nil {
+				t.Fatalf("Failed to check if service is registered: %s", err)
+			}
+
+			if registered {
+				t.Errorf("Expected service %s to not be registered, but it was", serviceName)
 			}
 		},
 	}
