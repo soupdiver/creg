@@ -1,0 +1,21 @@
+version: '3'
+services:
+  consul:
+    image: consul:latest
+    ports:
+      - "8500:8500"
+    networks:
+      - consul-test
+
+  creg:
+    build: .
+    # environment:
+    #   - CONSUL_URL=http://consul:8500
+    command: [ "/creg", "--address=6.6.6.6" ]
+    depends_on:
+      - consul
+    networks:
+      - consul-test
+
+networks:
+  consul-test:
