@@ -9,6 +9,7 @@ import (
 	clientv3 "go.etcd.io/etcd/client/v3"
 
 	"github.com/sirupsen/logrus"
+
 	"github.com/soupdiver/creg/backends"
 	ctypes "github.com/soupdiver/creg/types"
 )
