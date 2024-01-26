@@ -41,7 +41,7 @@ func GetContainersForCreg(ctx context.Context, client *client.Client, label stri
 	return cregContainers, nil
 }
 
-func GetEventsForCreg(ctx context.Context, client *client.Client, label string) chan ctypes.ContainerEventV2 {
+func GetEventsForCreg(ctx context.Context, client *client.Client, enableLabel, cregID string) chan ctypes.ContainerEventV2 {
 	log := ctx.Value("log").(*logrus.Entry).WithField("backend", "docker")
 
 	ctx, cancel := context.WithCancel(ctx)
@@ -71,9 +71,17 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, label string) 
 						continue
 					}
 
-					if label != "" {
-						if v, ok := container.Config.Labels[label]; !ok || v != "true" {
+					// When empty handle all containers
+					if enableLabel != "" {
+						// label must be set and be true
+						if v, ok := container.Config.Labels[enableLabel]; !ok || v != "true" {
 							// log.Printf("discard label %s: %+v", label, v)
+							continue
+						}
+
+						// creg.id if set must match
+						if v, ok := container.Config.Labels["creg.id"]; ok && v != cregID {
+							log.Printf("discard creg.id %s: %+v", cregID, v)
 							continue
 						}
 					}

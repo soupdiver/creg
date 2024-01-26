@@ -16,6 +16,7 @@ import (
 
 type Backend struct {
 	Name           string
+	ID             string
 	Log            *logrus.Entry
 	EtcdClient     *clientv3.Client
 	ForwardAddress string
@@ -135,7 +136,7 @@ func (b *Backend) RegisterServices(ports map[string]backends.ServiceWithLabels) 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err = b.EtcdClient.Put(ctx, GenerateServiceKey(service.Name), fmt.Sprintf("%s:%s", b.ForwardAddress, port))
+		_, err = b.EtcdClient.Put(ctx, "creg/"+b.ID+"/"+service.Name, fmt.Sprintf("%s:%s", b.ForwardAddress, port))
 		if err != nil {
 			return err
 		}

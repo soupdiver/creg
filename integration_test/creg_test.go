@@ -16,11 +16,12 @@ import (
 func TestConsulServiceRegistrationWithoutLabels(t *testing.T) {
 	t.Parallel()
 	tc := it.TestCase{
-		Args: []string{
-			"--consul", "http://consul:8500",
+		CregArgs: []string{
+			"--address", "6.6.6.6",
+			"--consul", "http://CONSUL_CONTAINER:8500",
 		},
 		UseConsul: true,
-		Run: func(t *testing.T, tCtx *it.TestContext) {
+		RunFunc: func(t *testing.T, tCtx *it.TestContext) {
 			ctx := context.Background()
 			serviceName := t.Name()
 
@@ -28,6 +29,52 @@ func TestConsulServiceRegistrationWithoutLabels(t *testing.T) {
 				ContainerRequest: testcontainers.ContainerRequest{
 					Name:       serviceName,
 					Image:      "nginx",
+					WaitingFor: wait.ForHTTP("/"),
+					Networks:   []string{tCtx.Network},
+				},
+				Started: true,
+			})
+			if err != nil {
+				t.Fatalf("Failed to start container: %s", err)
+			}
+			defer myservice.Terminate(ctx)
+
+			registered, err := it.IsConsulServiceRegistered(serviceName, tCtx.ConsulPort)
+			if err != nil {
+				t.Fatalf("Failed to check if service is registered: %s", err)
+			}
+
+			if registered {
+				t.Errorf("Expected service to not be registered, but it was")
+			}
+		},
+	}
+
+	tc.Execute(t)
+}
+
+func TestConsulServiceRegistrationWithWrongCregId(t *testing.T) {
+	t.Parallel()
+	tc := it.TestCase{
+		CregArgs: []string{
+			"--address", "6.6.6.6",
+			"--consul", "http://CONSUL_CONTAINER:8500",
+		},
+		UseConsul: true,
+		RunFunc: func(t *testing.T, tCtx *it.TestContext) {
+			ctx := context.Background()
+			serviceName := t.Name()
+
+			myservice, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+				ContainerRequest: testcontainers.ContainerRequest{
+					Name:  serviceName,
+					Image: "nginx",
+					Labels: map[string]string{
+						"creg":          "true",
+						"creg.port":     "'80/tcp:" + serviceName + "'",
+						"creg.backends": "consul",
+						"creg.id":       "foo",
+					},
 					WaitingFor: wait.ForHTTP("/"),
 					Networks:   []string{tCtx.Network},
 				},
@@ -55,12 +102,12 @@ func TestConsulServiceRegistrationWithoutLabels(t *testing.T) {
 func TestConsulServiceRegistrationWithLabels(t *testing.T) {
 	t.Parallel()
 	tc := it.TestCase{
-		Args: []string{
+		CregArgs: []string{
 			"--address", "6.6.6.6",
 			"--consul", "http://CONSUL_CONTAINER:8500",
 		},
 		UseConsul: true,
-		Run: func(t *testing.T, tCtx *it.TestContext) {
+		RunFunc: func(t *testing.T, tCtx *it.TestContext) {
 			ctx := context.Background()
 			serviceName := t.Name()
 
@@ -72,6 +119,7 @@ func TestConsulServiceRegistrationWithLabels(t *testing.T) {
 						"creg":          "true",
 						"creg.port":     "'80/tcp:" + serviceName + "'",
 						"creg.backends": "consul",
+						"creg.id":       tCtx.CregID,
 					},
 					ExposedPorts: []string{"80/tcp"},
 					WaitingFor:   wait.ForHTTP("/"),
@@ -91,6 +139,7 @@ func TestConsulServiceRegistrationWithLabels(t *testing.T) {
 				t.Errorf("Expected service %s to be registered, but it was not", serviceName)
 			}
 
+			// Terminate and check if service is unregistered
 			err = myservice.Terminate(ctx)
 			if err != nil {
 				t.Fatalf("Failed to terminate container: %s", err)
@@ -113,12 +162,12 @@ func TestConsulServiceRegistrationWithLabels(t *testing.T) {
 func TestEtcdServiceRegistrationWithoutLabels(t *testing.T) {
 	t.Parallel()
 	tc := it.TestCase{
-		Args: []string{
+		CregArgs: []string{
 			"--address", "6.6.6.6",
 			"--etcd", "http://etcd:2379",
 		},
 		UseEtcd: true,
-		Run: func(t *testing.T, tCtx *it.TestContext) {
+		RunFunc: func(t *testing.T, tCtx *it.TestContext) {
 			ctx := context.Background()
 			serviceName := t.Name()
 
@@ -136,7 +185,7 @@ func TestEtcdServiceRegistrationWithoutLabels(t *testing.T) {
 			}
 			defer myservice.Terminate(ctx)
 
-			registered, err := it.IsEtcdServiceRegistered("creg/"+serviceName, tCtx.EtcdPort)
+			registered, err := it.IsEtcdServiceRegistered("creg/"+serviceName, tCtx.EtcdPort, tCtx.CregID)
 			if err != nil {
 				t.Fatalf("Failed to check if service is registered: %s", err)
 			}
@@ -153,13 +202,13 @@ func TestEtcdServiceRegistrationWithoutLabels(t *testing.T) {
 func TestEtcdServiceRegistrationWitLabels(t *testing.T) {
 	t.Parallel()
 	tc := it.TestCase{
-		Args: []string{
+		CregArgs: []string{
 			"--address", "6.6.6.6",
 			"--etcd", "http://ETCD_ADDRESS:2379",
-			"--debug",
+			// "--debug",
 		},
 		UseEtcd: true,
-		Run: func(t *testing.T, tCtx *it.TestContext) {
+		RunFunc: func(t *testing.T, tCtx *it.TestContext) {
 			ctx := context.Background()
 			serviceName := t.Name()
 
@@ -171,6 +220,7 @@ func TestEtcdServiceRegistrationWitLabels(t *testing.T) {
 						"creg":          "true",
 						"creg.port":     "'80/tcp:" + serviceName + "'",
 						"creg.backends": "etcd",
+						"creg.id":       tCtx.CregID,
 					},
 					WaitingFor: wait.ForHTTP("/"),
 					Networks:   []string{tCtx.Network},
@@ -182,7 +232,7 @@ func TestEtcdServiceRegistrationWitLabels(t *testing.T) {
 			}
 			defer myservice.Terminate(ctx)
 
-			registered, err := it.IsEtcdServiceRegistered("creg", tCtx.EtcdPort)
+			registered, err := it.IsEtcdServiceRegistered("creg", tCtx.EtcdPort, tCtx.CregID)
 			if err != nil {
 				t.Fatalf("Failed to check if service is registered: %s", err)
 			}

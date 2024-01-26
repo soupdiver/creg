@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/exec"
@@ -22,9 +23,9 @@ import (
 )
 
 type TestCase struct {
-	Name string
-	Args []string
-	Run  func(t *testing.T, ctx *TestContext)
+	Name     string
+	CregArgs []string
+	RunFunc  func(t *testing.T, ctx *TestContext)
 
 	UseConsul bool
 	UseEtcd   bool
@@ -35,6 +36,7 @@ type TestCase struct {
 }
 
 type TestContext struct {
+	CregID            string
 	CregContainerName string
 	Network           string
 
@@ -56,6 +58,15 @@ func (tc *TestCase) Setup() (TestContext, error) {
 	}
 	tc.network = newNetwork
 
+	// generate random 12 char string
+	rand.Seed(time.Now().UnixNano())
+	letterRunes := []rune("abcdefghijklmnopqrstuvwxyz")
+	b := make([]rune, 12)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	tCtx.CregID = string(b)
+
 	// Start Consul container if needed
 	if tc.UseConsul {
 		consulContainer, err := StartConsulContainer(ctx, newNetwork)
@@ -70,8 +81,8 @@ func (tc *TestCase) Setup() (TestContext, error) {
 		}
 		consulContainerIP = strings.Trim(consulContainerIP, "/")
 
-		for i, arg := range tc.Args {
-			tc.Args[i] = strings.Replace(arg, "CONSUL_CONTAINER", consulContainerIP, -1)
+		for i, arg := range tc.CregArgs {
+			tc.CregArgs[i] = strings.Replace(arg, "CONSUL_CONTAINER", consulContainerIP, -1)
 		}
 
 		tCtx.ConsulContainerName, err = tc.consulContainer.Name(ctx)
@@ -99,8 +110,8 @@ func (tc *TestCase) Setup() (TestContext, error) {
 			return TestContext{}, fmt.Errorf("failed to get container IP: %w", err)
 		}
 
-		for i, arg := range tc.Args {
-			tc.Args[i] = strings.Replace(arg, "ETCD_ADDRESS", etcdContainerIP, -1)
+		for i, arg := range tc.CregArgs {
+			tc.CregArgs[i] = strings.Replace(arg, "ETCD_ADDRESS", etcdContainerIP, -1)
 		}
 
 		tCtx.EtcdContainerName, err = etcdContainer.Name(ctx)
@@ -142,7 +153,7 @@ func (tc *TestCase) Setup() (TestContext, error) {
 				},
 			}
 		},
-		Cmd: append([]string{"/creg"}, tc.Args...),
+		Cmd: append([]string{"/creg", "--id", tCtx.CregID}, tc.CregArgs...),
 	}
 	cregContainer, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: cregReq,
@@ -188,7 +199,7 @@ func (tc *TestCase) Execute(t *testing.T) {
 
 	// time.Sleep(2 * time.Second)
 
-	tc.Run(t, &tCtx)
+	tc.RunFunc(t, &tCtx)
 
 	if t.Failed() {
 		cmd := exec.Command("docker", "logs", tCtx.CregContainerName)
@@ -201,7 +212,7 @@ func (tc *TestCase) Execute(t *testing.T) {
 	}
 }
 
-func IsEtcdServiceRegistered(serviceName, port string) (bool, error) {
+func IsEtcdServiceRegistered(serviceName, port, id string) (bool, error) {
 	EtcdClient, err := clientv3.New(clientv3.Config{
 		Endpoints:   []string{"http://localhost:" + port},
 		DialTimeout: 5 * time.Second,
@@ -211,7 +222,9 @@ func IsEtcdServiceRegistered(serviceName, port string) (bool, error) {
 		return false, errors.Wrapf(err, "could not create etcd client")
 	}
 
-	s, err := EtcdClient.Get(context.Background(), "creg", clientv3.WithPrefix())
+	// log.Printf("check prefix: %s", id)
+
+	s, err := EtcdClient.Get(context.Background(), "creg/"+id, clientv3.WithPrefix())
 	if err != nil {
 		return false, errors.Wrapf(err, "could not get etcd client")
 	}

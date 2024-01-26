@@ -128,7 +128,8 @@ func Run() error {
 	podmanClient := podman.NewPodmanEventsClient("/run/podman/podman.sock")
 
 	inputs := []<-chan types.ContainerEventV2{
-		docker.GetEventsForCreg(ctx, dockerClient, *fEnableLabel),
+		docker.GetEventsForCreg(ctx, dockerClient, *fEnableLabel, cfg.ID),
+		// TODO: handle cregID
 		podmanClient.GetEventsForCreg(ctx, *fEnableLabel),
 	}
 
@@ -234,6 +235,7 @@ func EtcdFromConfig(cfg config.Config, log *logrus.Entry) *etcd.Backend {
 	if err != nil {
 		log.Fatalf("could not create etcd backend: %s", err)
 	}
+	c.ID = cfg.ID
 
 	return c
 }
