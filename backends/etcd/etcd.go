@@ -76,7 +76,7 @@ func (b *Backend) Run(ctx context.Context, events chan ctypes.ContainerEventV2, 
 					b.Log.Errorf("Could not RegisterServices: %s", err)
 					continue
 				}
-			case "stop":
+			case "stop", "kill":
 				b.Log.Debugf("Unregistering services: %+v", servicesByPort)
 				err := b.UnregisterServices(servicesByPort)
 				if err != nil {
@@ -119,7 +119,7 @@ func (b *Backend) UnregisterServices(ports map[string]backends.ServiceWithLabels
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		_, err = b.EtcdClient.Delete(ctx, GenerateServiceKey(service.Name))
+		_, err = b.EtcdClient.Delete(ctx, "creg/"+b.ID+"/"+service.Name)
 		if err != nil {
 			return err
 		}

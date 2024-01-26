@@ -222,7 +222,7 @@ func IsEtcdServiceRegistered(serviceName, port, id string) (bool, error) {
 		return false, errors.Wrapf(err, "could not create etcd client")
 	}
 
-	s, err := EtcdClient.Get(context.Background(), "creg/"+id, clientv3.WithPrefix())
+	s, err := EtcdClient.Get(context.Background(), "creg/"+id+"/"+serviceName, clientv3.WithPrefix())
 	if err != nil {
 		return false, errors.Wrapf(err, "could not get etcd client")
 	}

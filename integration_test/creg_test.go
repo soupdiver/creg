@@ -231,13 +231,30 @@ func TestEtcdServiceRegistrationWitLabels(t *testing.T) {
 			}
 			defer myservice.Terminate(ctx)
 
-			registered, err := it.IsEtcdServiceRegistered("creg", tCtx.EtcdPort, tCtx.CregID)
+			registered, err := it.IsEtcdServiceRegistered(serviceName, tCtx.EtcdPort, tCtx.CregID)
 			if err != nil {
 				t.Fatalf("Failed to check if service is registered: %s", err)
 			}
 
 			if !registered {
 				t.Errorf("Expected service to be registered, but it was not")
+			}
+
+			// Terminate and check if service is unregistered
+			err = myservice.Terminate(ctx)
+			if err != nil {
+				t.Fatalf("Failed to terminate container: %s", err)
+			}
+
+			// time.Sleep(2 * time.Second)
+
+			registered, err = it.IsEtcdServiceRegistered(serviceName, tCtx.EtcdPort, tCtx.CregID)
+			if err != nil {
+				t.Fatalf("Failed to check if service is registered: %s", err)
+			}
+
+			if registered {
+				t.Errorf("Expected service to not be registered, but it was")
 			}
 		},
 	}
