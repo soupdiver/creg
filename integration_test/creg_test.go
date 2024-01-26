@@ -164,7 +164,7 @@ func TestEtcdServiceRegistrationWithoutLabels(t *testing.T) {
 	tc := it.TestCase{
 		CregArgs: []string{
 			"--address", "6.6.6.6",
-			"--etcd", "http://etcd:2379",
+			"--etcd", "http://ETCD_ADDRESS:2379",
 		},
 		UseEtcd: true,
 		RunFunc: func(t *testing.T, tCtx *it.TestContext) {
@@ -205,7 +205,6 @@ func TestEtcdServiceRegistrationWitLabels(t *testing.T) {
 		CregArgs: []string{
 			"--address", "6.6.6.6",
 			"--etcd", "http://ETCD_ADDRESS:2379",
-			// "--debug",
 		},
 		UseEtcd: true,
 		RunFunc: func(t *testing.T, tCtx *it.TestContext) {

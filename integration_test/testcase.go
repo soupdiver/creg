@@ -222,41 +222,12 @@ func IsEtcdServiceRegistered(serviceName, port, id string) (bool, error) {
 		return false, errors.Wrapf(err, "could not create etcd client")
 	}
 
-	// log.Printf("check prefix: %s", id)
-
 	s, err := EtcdClient.Get(context.Background(), "creg/"+id, clientv3.WithPrefix())
 	if err != nil {
 		return false, errors.Wrapf(err, "could not get etcd client")
 	}
-	// log.Printf("res2: %+v", s)
 
 	return s.Count > 0, nil
-
-	// log.Printf("Checking via: " + "http://localhost:" + port + "/v3/kv/" + serviceName + "?keys=true")
-	// resp, err := http.Get("http://localhost:" + port + "/v3/kv/" + serviceName + "?keys=true")
-	// if err != nil {
-	// 	return false, errors.Wrapf(err, "could not get etcd service %s", serviceName)
-	// }
-	// defer resp.Body.Close()
-
-	// // print body
-	// body, err := ioutil.ReadAll(resp.Body)
-	// if err != nil {
-	// 	return false, errors.Wrap(err, "could not read body")
-	// }
-	// fmt.Println(string(body))
-
-	// if resp.StatusCode != http.StatusOK {
-	// 	return false, nil
-	// }
-
-	// var services []map[string]interface{}
-	// err = json.NewDecoder(resp.Body).Decode(&services)
-	// if err != nil {
-	// 	return false, errors.Wrap(err, "could not decode body")
-	// }
-
-	// return len(services) > 0, nil
 }
 
 func IsConsulServiceRegistered(serviceName, port string) (bool, error) {
