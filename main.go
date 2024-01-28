@@ -131,7 +131,7 @@ func Run() error {
 	inputs := []<-chan types.ContainerEventV2{
 		docker.GetEventsForCreg(ctx, dockerClient, *fEnableLabel, cfg.ID),
 		// TODO: handle cregID
-		podmanClient.GetEventsForCreg(ctx, *fEnableLabel),
+		podmanClient.GetEventsForCreg(ctx, *fEnableLabel, cfg.ID),
 	}
 
 	// Setup event multiplexer

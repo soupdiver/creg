@@ -154,7 +154,7 @@ type CustomConfig struct {
 	// SdNotifySocket string `json:"sdNotifySocket,omitempty"`
 }
 
-func (c *PodmanEventsClient) GetEventsForCreg(ctx context.Context, label string) chan ctypes.ContainerEventV2 {
+func (c *PodmanEventsClient) GetEventsForCreg(ctx context.Context, label, cregID string) chan ctypes.ContainerEventV2 {
 	log := ctx.Value("log").(*logrus.Entry).WithField("source", "podman")
 	eventsChannel := make(chan ctypes.ContainerEventV2)
 
@@ -241,7 +241,21 @@ func (c *PodmanEventsClient) GetEventsForCreg(ctx context.Context, label string)
 
 			// log.Debugf("Received event: Type=%s, Action=%s, ID=%s\n", event.Type, event.Action, event.Actor.ID)
 			ccc := ContainerInfoFromEvent(ctx, event)
-			// log.Debugf("ccc: %+v", ccc)
+
+			if label != "" {
+				// label must be set and be true
+				if v, ok := ccc.Labels[label]; !ok || v != "true" {
+					// log.Printf("discard label %s: %+v", label, v)
+					continue
+				}
+
+				// creg.id if set must match
+				if v, ok := ccc.Labels["creg.id"]; ok && v != cregID {
+					log.Printf("discard creg.id %s: %+v", cregID, v)
+					continue
+				}
+			}
+
 			eventsChannel <- ctypes.ContainerEventV2{
 				Action:    event.Action,
 				Container: ccc,
