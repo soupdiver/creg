@@ -246,8 +246,6 @@ func TestEtcdServiceRegistrationWitLabels(t *testing.T) {
 				t.Fatalf("Failed to terminate container: %s", err)
 			}
 
-			// time.Sleep(2 * time.Second)
-
 			registered, err = it.IsEtcdServiceRegistered(serviceName, tCtx.EtcdPort, tCtx.CregID)
 			if err != nil {
 				t.Fatalf("Failed to check if service is registered: %s", err)
