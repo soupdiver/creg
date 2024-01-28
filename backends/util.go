@@ -13,6 +13,7 @@ func ExtractPorts(labels map[string]string, prefix string) map[string]string {
 		v := strings.Replace(v, "'", "", -1)
 		if strings.HasPrefix(k, prefix) {
 			splitP := strings.Split(v, ",")
+			// log.Printf("splitP: %+v", splitP)
 			for _, v := range splitP {
 				split := strings.Split(v, ":")
 				if len(split) != 2 {

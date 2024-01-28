@@ -2,8 +2,12 @@ package docker
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/sirupsen/logrus"
 
@@ -42,7 +46,40 @@ func GetContainersForCreg(ctx context.Context, client *client.Client, label stri
 }
 
 func GetEventsForCreg(ctx context.Context, client *client.Client, enableLabel, cregID string) chan ctypes.ContainerEventV2 {
-	log := ctx.Value("log").(*logrus.Entry).WithField("backend", "docker")
+	log := ctx.Value("log").(*logrus.Entry).WithField("source", "docker")
+
+	c := make(chan ctypes.ContainerEventV2)
+
+	go func() {
+		time.Sleep(1 * time.Second)
+		rContainers, err := GetRunningContainers(ctx, client)
+		if err != nil {
+			log.Errorf("Error getting running containers: %s", err)
+		} else {
+			for _, container := range rContainers {
+				e := ctypes.ContainerEventV2{
+					Action: "start",
+					Container: ctypes.ContainerInfo{
+						ID:     container.ID,
+						Labels: container.Labels,
+						NetworkSettings: ctypes.NetworkSettings{
+							Ports: map[ctypes.Port][]ctypes.PortBinding{},
+						},
+					},
+				}
+				for _, v := range container.Ports {
+					p := ctypes.Port(fmt.Sprintf("%d/%s", v.PrivatePort, v.Type))
+					e.Container.NetworkSettings.Ports[p] = []ctypes.PortBinding{
+						{
+							HostIP:   v.IP,
+							HostPort: fmt.Sprintf("%d", v.PublicPort),
+						},
+					}
+				}
+				c <- e
+			}
+		}
+	}()
 
 	ctx, cancel := context.WithCancel(ctx)
 	es, cerr := client.Events(ctx, types.EventsOptions{})
@@ -53,9 +90,8 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, enableLabel, c
 		cancel()
 	}()
 
-	c := make(chan ctypes.ContainerEventV2)
-
 	go func() {
+		log.Debugf("Ready for events")
 		for {
 
 			select {
@@ -90,6 +126,9 @@ func GetEventsForCreg(ctx context.Context, client *client.Client, enableLabel, c
 						Action:    string(event.Action),
 						Container: ConvertContainerFromDocker(container),
 					}
+
+				default:
+					log.Debugf("Discard Event: %+v for container: %s", event.Action, event.Actor.ID)
 				}
 			}
 		}
@@ -119,13 +158,29 @@ func ConvertNetworkSettingsFromDocker(in *types.NetworkSettings) ctypes.NetworkS
 	}
 
 	for port, info := range in.Ports {
-		v.Ports[ctypes.Port(port.Port()+"/"+port.Proto())] = []ctypes.PortBinding{
-			{
-				HostIP:   info[0].HostIP,
-				HostPort: info[0].HostPort,
-			},
+		if len(info) > 0 {
+			v.Ports[ctypes.Port(port.Port()+"/"+port.Proto())] = []ctypes.PortBinding{
+				{
+					HostIP:   info[0].HostIP,
+					HostPort: info[0].HostPort,
+				},
+			}
 		}
 	}
 
 	return v
+}
+
+func GetRunningContainers(ctx context.Context, client *client.Client) ([]types.Container, error) {
+	args := filters.NewArgs()
+	args.Add("status", "running")
+
+	containers, err := client.ContainerList(ctx, container.ListOptions{
+		Filters: args,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return containers, nil
 }

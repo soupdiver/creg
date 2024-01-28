@@ -30,4 +30,7 @@ test-integration: build
 clean:
 	rm -rf ./dist
 
+dev: build
+	docker build -t soupdiver/creg:dev .
+
 .PHONY: build release image-docker image-docker-push image-docker-ci image-docker-ci-push test clean

@@ -17,6 +17,7 @@ import (
 	"github.com/soupdiver/creg/backends"
 	adguardhomebackend "github.com/soupdiver/creg/backends/adguardhome"
 	"github.com/soupdiver/creg/backends/consul"
+	"github.com/soupdiver/creg/backends/debug"
 	"github.com/soupdiver/creg/backends/etcd"
 	"github.com/soupdiver/creg/config"
 	"github.com/soupdiver/creg/docker"
@@ -83,12 +84,12 @@ func Run() error {
 	// Logging defaults
 	logr.Out = os.Stdout
 	logr.SetLevel(logrus.InfoLevel)
-	logr.SetFormatter(&logrus.JSONFormatter{})
-	if !*fLogColor {
-		logr.SetFormatter(&logrus.TextFormatter{
-			DisableColors: true,
-		})
-	}
+	logr.SetFormatter(&logrus.TextFormatter{})
+	// if !*fLogColor {
+	// 	logr.SetFormatter(&logrus.TextFormatter{
+	// 		DisableColors: true,
+	// 	})
+	// }
 
 	if fDebug != nil && *fDebug {
 		logr.SetLevel(logrus.DebugLevel)
@@ -130,7 +131,7 @@ func Run() error {
 	inputs := []<-chan types.ContainerEventV2{
 		docker.GetEventsForCreg(ctx, dockerClient, *fEnableLabel, cfg.ID),
 		// TODO: handle cregID
-		podmanClient.GetEventsForCreg(ctx, *fEnableLabel),
+		podmanClient.GetEventsForCreg(ctx, *fEnableLabel, cfg.ID),
 	}
 
 	// Setup event multiplexer
@@ -139,6 +140,11 @@ func Run() error {
 
 	// Setup Backends
 	var enabledBackends []backends.Backend
+
+	if *fDebug {
+		log.WithField("label", *fEnableLabel).Printf("Enable debug")
+		enabledBackends = append(enabledBackends, debug.New(ctx))
+	}
 
 	if *fConsulAddress != "" {
 		log.WithField("label", *fEnableLabel).Printf("Enable consul")
@@ -161,10 +167,10 @@ func Run() error {
 	}
 
 	// Get currently running containers that we should register
-	containers, err := docker.GetContainersForCreg(ctx, dockerClient, *fEnableLabel)
-	if err != nil {
-		return fmt.Errorf("could not get creg containers: %w", err)
-	}
+	// containers, err := docker.GetContainersForCreg(ctx, dockerClient, *fEnableLabel)
+	// if err != nil {
+	// 	return fmt.Errorf("could not get creg containers: %w", err)
+	// }
 
 	// Start backends
 	var wg sync.WaitGroup
@@ -172,7 +178,7 @@ func Run() error {
 		wg.Add(1)
 		go func(backend backends.Backend) {
 			defer wg.Done()
-			err := backend.Run(ctx, multi.NewOutput(backend.GetName()), *fSync, containers)
+			err := backend.Run(ctx, multi.NewOutput(backend.GetName()), *fSync, []types.ContainerInfo{})
 			if err != nil {
 				log.Printf("Backend failed: %s", err)
 			}
